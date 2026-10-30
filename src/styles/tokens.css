@@ -1,0 +1,40 @@
+:root {
+  /* Neutrals */
+  --bg: #FFFFFF;
+  --surface: #F6F8FB;
+  --surface-2: #EDF1F7;
+  --border: #DDE3EC;
+  --text: #0F172A;
+  --text-2: #475569;
+  --text-3: #64748B;
+
+  /* Brand */
+  --brand: #0B3C5D;
+  --brand-hover: #082C45;
+  --brand-soft: #E6EEF4;
+  --accent: #1D6FA5;
+
+  /* Risk and status */
+  --risk-low: #15803D;
+  --risk-low-soft: #E7F5EC;
+  --risk-moderate: #B45309;
+  --risk-moderate-soft: #FEF3C7;
+  --risk-high: #C2410C;
+  --risk-high-soft: #FFEDD5;
+  --risk-severe: #B91C1C;
+  --risk-severe-soft: #FEE2E2;
+  --risk-blocked: #111827;
+  --risk-blocked-soft: #E5E7EB;
+
+  --info: #0369A1;
+  --info-soft: #E0F2FE;
+  --verified: #1D4ED8;
+  --verified-soft: #DBEAFE;
+  --sponsored: #6D28D9;
+  --sponsored-soft: #EDE9FE;
+  --test: #475569;
+  --test-soft: #F1F5F9;
+  --sos: #DC2626;
+  --sos-soft: #FEE2E2;
+}
+
