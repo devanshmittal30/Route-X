@@ -88,8 +88,23 @@
     - Real database statistics (verified reports, contributors, safe stays) excluding test data.
   - Added Vitest unit test suite in `src/features/weather/weatherHelpers.test.ts` (19/19 tests passing).
 
+- **P6 Geocoding and Routing**:
+  - Implemented geocoding client in `src/features/routing/geocoding.ts` with Open-Meteo as primary (India-prioritized) and Photon as fallback.
+  - Implemented OSRM client in `src/features/routing/osrmClient.ts` using `routed-car` and `routed-foot` path prefixes with `alternatives=true`, `overview=full`, `geometries=geojson`, and `steps=true`.
+  - Added 8-second timeout with AbortController and 1 automatic retry, plus clear, human-friendly error messages (NoRoute, ServiceBusy, timeout).
+  - Built `RouteAutocomplete` component in `src/components/routing/RouteAutocomplete.tsx` with debounced search, clear button, and "Pick on map" capability.
+  - Built `RouteCard` component in `src/components/routing/RouteCard.tsx` displaying mode icon, distance, duration, and neutral "Risk: pending" chip (**strictly no fake numbers**).
+  - Implemented full Route Planning page in `src/pages/RoutePage.tsx`:
+    - 380px left panel with From/To autocompletes, swap button, Drive/Walk mode toggle, and "Pick on map" interactive pin placer.
+    - Selected route turn-by-turn steps summary accordion.
+    - Action buttons: "Auto re-route (safer)" preview, "Save route", and "Share route" (copies link with URL query params).
+    - MapLibre GL map integration: primary route line rendered in brand blue (`#0B3C5D`) with 2px white casing; alternative routes rendered in 50% dashed grey (`#94A3B8`).
+    - Origin start pin and destination end marker with automatic `fitToBounds` padding.
+    - Supports URL search parameters from Home page (`?from=...&to=...&mode=...`).
+  - Added Vitest unit test suite in `src/features/routing/routing.test.ts` (24/24 tests passing).
+
 ## In progress
-- Ready for P6 (Route planning, sampling and alternatives).
+- Ready for P7 (Route risk scoring engine).
 
 ## Questions for the user
 - None. Ready for next prompt.
