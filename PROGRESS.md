@@ -50,6 +50,7 @@
   - Connected Git remote `origin` to `https://github.com/devanshmittal30/Route-X.git`.
   - Configured project environment with live Supabase credentials (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`).
   - Automatically provisioned the public storage bucket `report-photos` on Supabase with 3 MB size limit and image MIME restrictions.
+  - Successfully applied and verified live database schema, PostGIS spatial extension, RPC functions (`reports_near`, `reports_along_route`), and seed data (8 test reports, 4 partners, 4 offers).
 
 ## In progress
 - Ready for P4 (Map foundation with PMTiles).
