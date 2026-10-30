@@ -69,8 +69,27 @@
   - Built interactive test suite on `/map` page (`src/pages/MapPage.tsx`) with quick viewport jump buttons and sample risk marker toggling.
   - Added comprehensive unit tests in `src/features/map/pmtiles.test.ts` (7/7 tests passing).
 
+- **P5 Weather Service, Home Page and Alerts**:
+  - Implemented Open-Meteo client in `src/features/weather/openMeteoClient.ts` with Zod schema validation, 8 s timeout + 1 automatic retry, multi-location batching, and 30-minute dual caching (in-memory + Supabase `weather_cache` table).
+  - Implemented USGS earthquakes client in `src/features/quakes/usgsClient.ts` querying M4.5+ events in the India bounding box within 72 hours, with Haversine distance calculations to the selected location.
+  - Implemented interactive `LocationPicker` with live Open-Meteo geocoding search (India-priority) and browser GPS geolocation.
+  - Built `WeatherBox` component in `src/components/weather/WeatherBox.tsx` supporting:
+    - 3 visual states: loading skeleton, live value with unit/source/updated time, error state with retry button, and offline cached state with age badges (`10m ago`, `2h ago`).
+  - Built `AlertsStrip` component in `src/components/weather/AlertsStrip.tsx` with IMD-style rain categories (Heavy, Very Heavy, Extremely Heavy), wind gusts (>= 50 km/h), snowfall, and seismic alerts within 300 km. Shows "No active alerts from forecast data" when clear.
+  - Implemented complete Home page wireframe from Doc 02 section 6.1:
+    - 8 WeatherBoxes (Temperature, Rain 24h, Rain 72h, Wind & Gusts, Humidity, Snow 24h, Soil Wetness, Quakes 72h).
+    - AREA RISK box with clearly labeled "single-point estimate".
+    - Route planning search card with Drive/Walk toggle and swap button navigating to `/route`.
+    - Mini hazard map using `RouteXMap` synchronized with the active location.
+    - Recent community reports feed placeholder (`EmptyState`).
+    - Verified safe stays placeholder (`Sponsored (Demo)`).
+    - Community karma & rewards teaser.
+    - 4-step How It Works breakdown.
+    - Real database statistics (verified reports, contributors, safe stays) excluding test data.
+  - Added Vitest unit test suite in `src/features/weather/weatherHelpers.test.ts` (19/19 tests passing).
+
 ## In progress
-- Ready for P5 (Live Hazard Reports layer and real-time community verification).
+- Ready for P6 (Route planning, sampling and alternatives).
 
 ## Questions for the user
 - None. Ready for next prompt.
