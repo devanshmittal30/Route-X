@@ -97,3 +97,4 @@ describe('Marker Popup Formatting', () => {
     expect(html).toContain('High Risk');
   });
 });
+
