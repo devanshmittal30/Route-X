@@ -15,6 +15,8 @@ export const envSchema = z.object({
     .enum(['true', 'false'])
     .default('true')
     .transform((val) => val === 'true'),
+  VITE_MAP_API_KEY: z.string().optional(),
+  VITE_MAP_TILES_URL: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

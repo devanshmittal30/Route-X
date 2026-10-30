@@ -176,33 +176,41 @@ export function buildPmtilesMapStyle(pmtilesUrl: string): StyleSpecification {
 
 /**
  * Fallback style when local PMTiles files have not been extracted into public/maps/ yet.
- * Uses high-performance OpenStreetMap CartoDB Voyager raster tiles so all roads,
- * terrain, towns, and mountains render smoothly with zero configuration.
+ * Uses official OpenStreetMap (FOSSGIS / tile.openstreetmap.de) tiles by default:
+ * - Completely free, high-performance OSM cartography
+ * - Zero API key required, zero watermark (replaces watermarked CartoDB tiles)
+ * - Can be customized via VITE_MAP_TILES_URL and VITE_MAP_API_KEY
  */
 export function buildFallbackMapStyle(): StyleSpecification {
+  const customTilesUrl =
+    (typeof import.meta !== 'undefined' && import.meta.env?.VITE_MAP_TILES_URL) || '';
+  const apiKey =
+    (typeof import.meta !== 'undefined' && import.meta.env?.VITE_MAP_API_KEY) || '';
+
+  let tileUrl = 'https://tile.openstreetmap.de/{z}/{x}/{y}.png';
+
+  if (customTilesUrl) {
+    tileUrl = customTilesUrl.replace('{apiKey}', apiKey).replace('{key}', apiKey);
+  }
+
   return {
     version: 8,
     sources: {
-      carto: {
+      osm: {
         type: 'raster',
-        tiles: [
-          'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
-          'https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
-          'https://c.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
-          'https://d.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
-        ],
+        tiles: [tileUrl],
         tileSize: 256,
         attribution:
-          '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>, © <a href="https://carto.com/attributions" target="_blank" rel="noopener noreferrer">CARTO</a>',
+          '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>',
       },
     },
     layers: [
       {
-        id: 'carto-tiles',
+        id: 'osm-tiles',
         type: 'raster',
-        source: 'carto',
+        source: 'osm',
         minzoom: 0,
-        maxzoom: 20,
+        maxzoom: 19,
       },
     ],
   };

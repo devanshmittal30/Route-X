@@ -84,7 +84,7 @@ export const RouteXMap: React.FC<RouteXMapProps> = ({
       new maplibregl.AttributionControl({
         compact: true,
         customAttribution:
-          '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>, © <a href="https://carto.com/attributions" target="_blank" rel="noopener noreferrer">CARTO</a>',
+          '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>',
       }),
       'bottom-right'
     );
