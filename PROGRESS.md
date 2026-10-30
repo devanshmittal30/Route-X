@@ -22,16 +22,28 @@
   - Documented decision: Use Geological Survey of India (GSI, 2026 update) data for India landslide inventory and susceptibility.
   - Implemented India-first location priority in geocoding.
 
+- **P2 Design System & Layout Shell**:
+  - Installed `@fontsource/inter` (400, 500, 600) and `@fontsource/jetbrains-mono` (400, 600).
+  - Configured typography scale (`h1`, `h2`, `h3`, `body`, `small`) and border radius tokens (`rounded-card`, `rounded-btn`, `rounded-chip`).
+  - Implemented core UI components in `src/components/ui/`: `Button` (primary/secondary/danger/ghost with loading), `Card`, `Badge`, `RiskBadge` (level -> color, icon, label, score), `RiskMeter` (horizontal 0-100 bar with level bands), `TestBadge`, `DemoBadge`, `SponsoredBadge`, `VerifiedBadge`, `Banner` (offline/info/disclaimer), `Modal`, `Drawer`, `Tabs`, `Toast`, `Skeleton`, `EmptyState`, `Input`, `Select`, `Switch`.
+  - Implemented layout components in `src/components/layout/`:
+    - `Header`: RouteX text logo with mountain-route SVG glyph in brand color, navigation links, Demo mode toggle, live online/offline indicator dot, persistent red SOS button, profile/login link, and mobile drawer.
+    - `Footer`: Verbatim disclaimer ("RouteX gives risk estimates from public data and user reports. It is not an official warning. Follow IMD, NDMA and local administration advisories.") and Doc 03 Section 14 attributions.
+    - `MobileTabBar`: Fixed bottom navigation for mobile viewports.
+    - `AppShell`: Persistent wrapper with Header, Footer, MobileTabBar, Chat Assistant FAB, and SOS FAB.
+  - Implemented 14 page routes with title and "Coming soon" EmptyState: Home (`/`), Route (`/route`), Map (`/map`), Report (`/report`), Reports (`/reports`), Trek (`/trek`), Offline (`/offline`), SOS (`/sos`), Stays (`/stays`), Rewards (`/rewards`), Alerts (`/alerts`), Profile (`/profile`), Login (`/login`), About (`/about`).
+  - Built interactive dev-only `/design-system` page showcasing all tokens, risk meters, badges, and components.
+  - Verified P2 acceptance: All routes render, WCAG AA contrast on soft backgrounds, keyboard focus visible, zero raw hex values in application styles, and `typecheck`, `lint`, and `test` pass.
+
 - **MCP & Repository Setup**:
   - Configured Supabase MCP server in `~/.gemini/antigravity/mcp_config.json` (`project_ref=uvtxpwnjvvxasjtopdby`).
-  - Endpoint verified: responding live with OAuth challenge.
   - Connected Git remote `origin` to `https://github.com/devanshmittal30/Route-X.git`.
 
 ## In progress
-- Preparing for P2: Design system and layout shell.
+- Ready for P3 (Base vector map and hazard layers).
 
 ## Questions for the user
-- None. All P1 questions resolved (GSI data selected; Indian locations prioritized; ORS key verified).
+- None. Ready for next prompt.
 
 ## API verification notes
 

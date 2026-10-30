@@ -14,7 +14,7 @@
   --brand-soft: #E6EEF4;
   --accent: #1D6FA5;
 
-  /* Risk and status */
+  /* Risk and status (semantic; always pair with icon + label) */
   --risk-low: #15803D;
   --risk-low-soft: #E7F5EC;
   --risk-moderate: #B45309;
@@ -37,4 +37,3 @@
   --sos: #DC2626;
   --sos-soft: #FEE2E2;
 }
-

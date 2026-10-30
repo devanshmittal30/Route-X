@@ -5,71 +5,59 @@ export default {
     extend: {
       colors: {
         bg: 'var(--bg)',
-        surface: {
-          DEFAULT: 'var(--surface)',
-          2: 'var(--surface-2)',
-        },
+        surface: 'var(--surface)',
+        'surface-2': 'var(--surface-2)',
         border: 'var(--border)',
-        text: {
-          DEFAULT: 'var(--text)',
-          2: 'var(--text-2)',
-          3: 'var(--text-3)',
-        },
+        text: 'var(--text)',
+        'text-2': 'var(--text-2)',
+        'text-3': 'var(--text-3)',
         brand: {
           DEFAULT: 'var(--brand)',
           hover: 'var(--brand-hover)',
           soft: 'var(--brand-soft)',
         },
         accent: 'var(--accent)',
-        risk: {
-          low: {
-            DEFAULT: 'var(--risk-low)',
-            soft: 'var(--risk-low-soft)',
-          },
-          moderate: {
-            DEFAULT: 'var(--risk-moderate)',
-            soft: 'var(--risk-moderate-soft)',
-          },
-          high: {
-            DEFAULT: 'var(--risk-high)',
-            soft: 'var(--risk-high-soft)',
-          },
-          severe: {
-            DEFAULT: 'var(--risk-severe)',
-            soft: 'var(--risk-severe-soft)',
-          },
-          blocked: {
-            DEFAULT: 'var(--risk-blocked)',
-            soft: 'var(--risk-blocked-soft)',
-          },
-        },
-        info: {
-          DEFAULT: 'var(--info)',
-          soft: 'var(--info-soft)',
-        },
-        verified: {
-          DEFAULT: 'var(--verified)',
-          soft: 'var(--verified-soft)',
-        },
-        sponsored: {
-          DEFAULT: 'var(--sponsored)',
-          soft: 'var(--sponsored-soft)',
-        },
-        test: {
-          DEFAULT: 'var(--test)',
-          soft: 'var(--test-soft)',
-        },
-        sos: {
-          DEFAULT: 'var(--sos)',
-          soft: 'var(--sos-soft)',
-        },
+        'risk-low': 'var(--risk-low)',
+        'risk-low-soft': 'var(--risk-low-soft)',
+        'risk-moderate': 'var(--risk-moderate)',
+        'risk-moderate-soft': 'var(--risk-moderate-soft)',
+        'risk-high': 'var(--risk-high)',
+        'risk-high-soft': 'var(--risk-high-soft)',
+        'risk-severe': 'var(--risk-severe)',
+        'risk-severe-soft': 'var(--risk-severe-soft)',
+        'risk-blocked': 'var(--risk-blocked)',
+        'risk-blocked-soft': 'var(--risk-blocked-soft)',
+        info: 'var(--info)',
+        'info-soft': 'var(--info-soft)',
+        verified: 'var(--verified)',
+        'verified-soft': 'var(--verified-soft)',
+        sponsored: 'var(--sponsored)',
+        'sponsored-soft': 'var(--sponsored-soft)',
+        test: 'var(--test)',
+        'test-soft': 'var(--test-soft)',
+        sos: 'var(--sos)',
+        'sos-soft': 'var(--sos-soft)',
+      },
+      fontFamily: {
+        sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+        mono: ['"JetBrains Mono"', 'monospace'],
+      },
+      fontSize: {
+        h1: ['36px', { lineHeight: '44px', fontWeight: '600' }],
+        h2: ['24px', { lineHeight: '32px', fontWeight: '600' }],
+        h3: ['18px', { lineHeight: '26px', fontWeight: '600' }],
+        body: ['15px', { lineHeight: '24px', fontWeight: '400' }],
+        small: ['13px', { lineHeight: '20px', fontWeight: '400' }],
       },
       borderRadius: {
         card: '14px',
         btn: '10px',
+        chip: '999px',
+      },
+      boxShadow: {
+        card: '0 1px 2px rgba(15,23,42,.06), 0 4px 12px rgba(15,23,42,.06)',
       },
     },
   },
   plugins: [],
 };
-
