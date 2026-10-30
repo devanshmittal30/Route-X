@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { LifeBuoy, User, Menu, X, MessageSquareWarning, Sparkles } from 'lucide-react';
 import { Switch } from '../ui/Switch';
-import { useDemoStore } from '../../lib/demoStore';
+import { useDemoStore, isDemoConfigured } from '../../lib/demoStore';
 
 export interface HeaderProps {
   demoMode?: boolean;
@@ -107,15 +107,17 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Header Right Controls */}
         <div className="flex items-center gap-3">
-          {/* Demo Mode Switch (desktop) */}
-          <div className="hidden sm:flex items-center">
-            <Switch
-              checked={activeDemoMode}
-              onChange={handleDemoToggle}
-              label="Demo"
-              id="header-demo-switch"
-            />
-          </div>
+          {/* Demo Mode Switch (desktop) - only shown when VITE_DEMO_MODE is not set to false */}
+          {isDemoConfigured() && (
+            <div className="hidden sm:flex items-center">
+              <Switch
+                checked={activeDemoMode}
+                onChange={handleDemoToggle}
+                label="Demo"
+                id="header-demo-switch"
+              />
+            </div>
+          )}
 
           {/* Online/Offline status dot */}
           <div
@@ -166,14 +168,16 @@ export const Header: React.FC<HeaderProps> = ({
       {/* Mobile Navigation Drawer */}
       {mobileMenuOpen && (
         <div className="lg:hidden bg-white border-b border-border px-4 py-3 space-y-2 shadow-card animate-fadeIn">
-          <div className="py-2 border-b border-border flex items-center justify-between">
-            <span className="text-small font-medium text-text-2">Demo mode</span>
-            <Switch
-              checked={activeDemoMode}
-              onChange={handleDemoToggle}
-              id="mobile-demo-switch"
-            />
-          </div>
+          {isDemoConfigured() && (
+            <div className="py-2 border-b border-border flex items-center justify-between">
+              <span className="text-small font-medium text-text-2">Demo mode</span>
+              <Switch
+                checked={activeDemoMode}
+                onChange={handleDemoToggle}
+                id="mobile-demo-switch"
+              />
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-1 pt-1">
             {navLinks.map((link) => {
               const isActive = location.pathname === link.to;
@@ -215,7 +219,7 @@ export const Header: React.FC<HeaderProps> = ({
       </header>
 
       {/* Thin Demo Mode Notice Banner (Doc 01 FR-D2 & Doc 04 P10) */}
-      {activeDemoMode && (
+      {isDemoConfigured() && activeDemoMode && (
         <div className="w-full bg-amber-50 border-b border-amber-200/80 py-1 px-4 text-center text-[11px] font-medium text-amber-800 flex items-center justify-center gap-1.5 shadow-2xs select-none animate-fadeIn">
           <Sparkles size={12} className="text-amber-600 shrink-0" />
           <span>Demo mode: test data included and labelled</span>
