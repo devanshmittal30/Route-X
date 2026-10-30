@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Thermometer,
@@ -43,6 +43,12 @@ import { RiskBadge } from '../components/ui/RiskBadge';
 import { RiskMeter } from '../components/ui/RiskMeter';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../features/auth/AuthContext';
+import { fetchHazardReports, subscribeToHazardReports } from '../features/reports/reportsService';
+import type { HazardReport } from '../features/reports/types';
+import { ReportCard } from '../components/reports/ReportCard';
+import { ReportModal } from '../components/reports/ReportModal';
+import { ReportDetailDrawer } from '../components/reports/ReportDetailDrawer';
+import type { LayerManagerAPI, MarkerHandle } from '../features/map/types';
 
 // Default initial hill location: Shimla, Himachal Pradesh
 const DEFAULT_LOCATION: SelectedLocation = {
@@ -85,6 +91,14 @@ export const HomePage: React.FC = () => {
     contributors: 0,
     safeStays: 0,
   });
+
+  // Latest Community Reports State (P8)
+  const [latestReports, setLatestReports] = useState<HazardReport[]>([]);
+  const [isLoadingReports, setIsLoadingReports] = useState<boolean>(true);
+  const [selectedReportForDrawer, setSelectedReportForDrawer] = useState<HazardReport | null>(null);
+  const [isReportModalOpen, setIsReportModalOpen] = useState<boolean>(false);
+  const miniMapApiRef = useRef<LayerManagerAPI | null>(null);
+  const mapMarkersRef = useRef<MarkerHandle[]>([]);
 
   // Load weather and quakes for selected location
   const loadData = useCallback(async (loc: SelectedLocation) => {
@@ -167,6 +181,93 @@ export const HomePage: React.FC = () => {
   useEffect(() => {
     loadData(location);
   }, [location, demoMode, loadData]);
+
+  // Fetch latest community reports (P8)
+  const loadCommunityReports = useCallback(async () => {
+    setIsLoadingReports(true);
+    try {
+      const data = await fetchHazardReports({
+        includeTest: demoMode,
+        limit: 4,
+        userCoords: [location.longitude, location.latitude],
+        sortBy: 'distance',
+      });
+      setLatestReports(data);
+    } catch {
+      setLatestReports([]);
+    } finally {
+      setIsLoadingReports(false);
+    }
+  }, [demoMode, location]);
+
+  useEffect(() => {
+    loadCommunityReports();
+  }, [loadCommunityReports]);
+
+  // Realtime subscription for community reports (P8)
+  useEffect(() => {
+    const unsub = subscribeToHazardReports(({ eventType, newReport }) => {
+      if (!newReport) return;
+      if (!demoMode && newReport.is_test) return;
+
+      setLatestReports((prev) => {
+        if (eventType === 'INSERT') {
+          if (prev.some((r) => r.id === newReport.id)) return prev;
+          return [newReport, ...prev.slice(0, 3)];
+        }
+        if (eventType === 'UPDATE') {
+          return prev.map((r) => (r.id === newReport.id ? { ...r, ...newReport } : r));
+        }
+        if (eventType === 'DELETE') {
+          return prev.filter((r) => r.id !== newReport.id);
+        }
+        return prev;
+      });
+    });
+
+    return () => unsub();
+  }, [demoMode]);
+
+  // Update Mini Map Markers with latest hazard reports (P8)
+  useEffect(() => {
+    const api = miniMapApiRef.current;
+    if (!api) return;
+
+    mapMarkersRef.current.forEach((m: MarkerHandle) => m.remove());
+    mapMarkersRef.current = [];
+
+    latestReports.forEach((rep) => {
+      const isVerified = rep.status === 'verified';
+      const color = isVerified
+        ? '#15803D'
+        : rep.severity >= 3
+          ? '#EF4444'
+          : '#F97316';
+
+      const icon =
+        rep.type === 'road_blocked'
+          ? 'ban'
+          : rep.type === 'landslide'
+            ? 'siren'
+            : 'triangle-alert';
+
+      const handle = api.addMarker({
+        lngLat: rep.coordinates,
+        icon,
+        color,
+        bgSoftColor: isVerified ? '#E7F5EC' : '#FEF2F2',
+        isTest: rep.is_test,
+        size: 32,
+        popup: {
+          title: `${rep.type.replace('_', ' ').toUpperCase()} (${rep.status})`,
+          description: rep.description || 'Reported hazard on corridor',
+          badge: isVerified ? 'Verified' : 'Pending',
+        },
+      });
+
+      mapMarkersRef.current.push(handle);
+    });
+  }, [latestReports]);
 
   // Load Real Statistics from Database
   useEffect(() => {
@@ -600,6 +701,9 @@ export const HomePage: React.FC = () => {
             <RouteXMap
               initialCenter={[location.longitude, location.latitude]}
               initialZoom={9}
+              onMapReady={(api) => {
+                miniMapApiRef.current = api;
+              }}
               showControls={true}
               showLegend={false}
               showLayerPanel={false}
@@ -608,36 +712,70 @@ export const HomePage: React.FC = () => {
           </div>
         </div>
 
-        {/* Right: Latest Reports Placeholder (Wireframe 6.1) */}
+        {/* Right: Latest Reports (Wireframe 6.1) */}
         <div className="lg:col-span-5 bg-white border border-border rounded-card p-4 shadow-xs flex flex-col justify-between">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-h3 font-bold text-brand">Recent Community Reports</h3>
+          <div className="flex items-center justify-between mb-2">
+            <div>
+              <h3 className="text-h3 font-bold text-brand">Recent Community Reports</h3>
+              <p className="text-[11px] text-text-3 font-mono">Live crowdsourced road status</p>
+            </div>
             <Button
               variant="ghost"
               size="sm"
               onClick={() => navigate('/reports')}
               className="text-xs"
             >
-              View Feed
+              All Reports
             </Button>
           </div>
 
-          <div className="flex-1 flex flex-col justify-center py-4">
-            <EmptyState
-              icon={FileText}
-              title="Community Reports Feed"
-              description="Live peer-verified reports for this region will load here. Peer verification rules active in database."
-              action={
-                <Button variant="secondary" size="sm" onClick={() => navigate('/report')}>
-                  Report a Hazard
-                </Button>
-              }
-            />
+          <div className="flex-1 overflow-y-auto max-h-[310px] space-y-2.5 my-2">
+            {isLoadingReports ? (
+              <div className="space-y-2 py-4">
+                {[1, 2].map((i) => (
+                  <div key={i} className="p-3 rounded-card bg-surface animate-pulse space-y-2">
+                    <div className="h-4 bg-surface-2 rounded-btn w-1/3" />
+                    <div className="h-3 bg-surface-2 rounded-btn w-2/3" />
+                  </div>
+                ))}
+              </div>
+            ) : latestReports.length > 0 ? (
+              latestReports.map((rep) => (
+                <ReportCard
+                  key={rep.id}
+                  report={rep}
+                  onSelect={() => setSelectedReportForDrawer(rep)}
+                />
+              ))
+            ) : (
+              <div className="py-6">
+                <EmptyState
+                  icon={FileText}
+                  title="No Reports Near This Location"
+                  description="Be the first traveller to post a road or weather hazard observation for this area."
+                  action={
+                    <Button variant="secondary" size="sm" onClick={() => setIsReportModalOpen(true)}>
+                      Report a Hazard
+                    </Button>
+                  }
+                />
+              </div>
+            )}
           </div>
 
-          <p className="text-[11px] text-text-3 text-center pt-2 border-t border-border font-mono">
-            Verified when 3+ travelers confirm hazard presence
-          </p>
+          <div className="flex items-center justify-between pt-2 border-t border-border">
+            <span className="text-[10px] text-text-3 font-mono">
+              Earn +5 pts on report · Verified at 3+ confirms
+            </span>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => setIsReportModalOpen(true)}
+              className="text-xs"
+            >
+              + Report Hazard
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -834,6 +972,21 @@ export const HomePage: React.FC = () => {
         <AlertCircle size={12} className="text-risk-moderate shrink-0" />
         <span>RouteX provides explainable risk estimates. Always follow local disaster authority directives.</span>
       </div>
+
+      {/* Report Modal */}
+      <ReportModal
+        isOpen={isReportModalOpen}
+        onClose={() => setIsReportModalOpen(false)}
+        defaultCoordinates={[location.longitude, location.latitude]}
+        onReportCreated={loadCommunityReports}
+      />
+
+      {/* Report Detail Drawer */}
+      <ReportDetailDrawer
+        report={selectedReportForDrawer}
+        isOpen={Boolean(selectedReportForDrawer)}
+        onClose={() => setSelectedReportForDrawer(null)}
+      />
     </div>
   );
 };

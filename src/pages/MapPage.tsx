@@ -1,87 +1,126 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { RouteXMap } from '../components/map/RouteXMap';
-import type { LayerManagerAPI } from '../features/map/types';
+import type { LayerManagerAPI, MarkerHandle } from '../features/map/types';
 import { Button } from '../components/ui/Button';
 import { Card } from '../components/ui/Card';
-import { Badge } from '../components/ui/Badge';
 import {
   Compass,
   MapPin,
   Mountain,
-  PlusCircle,
-  RotateCcw,
+  Plus,
+  RefreshCw,
   Layers,
+  Radio,
 } from 'lucide-react';
+import {
+  fetchHazardReports,
+  subscribeToHazardReports,
+} from '../features/reports/reportsService';
+import type { HazardReport } from '../features/reports/types';
+import { useDemoStore } from '../lib/demoStore';
+import { ReportModal } from '../components/reports/ReportModal';
+import { ReportDetailDrawer } from '../components/reports/ReportDetailDrawer';
 
 export const MapPage: React.FC = () => {
+  const demoMode = useDemoStore((state) => state.demoMode);
   const [mapApi, setMapApi] = useState<LayerManagerAPI | null>(null);
   const [lastClickedCoords, setLastClickedCoords] = useState<{ lat: number; lng: number } | null>(null);
-  const [markersCount, setMarkersCount] = useState<number>(0);
-  const markersRef = useRef<Array<{ remove: () => void }>>([]);
+
+  // Reports & Drawer State
+  const [reports, setReports] = useState<HazardReport[]>([]);
+  const [selectedReport, setSelectedReport] = useState<HazardReport | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  const markersRef = useRef<MarkerHandle[]>([]);
 
   const handleFlyTo = (lng: number, lat: number, zoom: number = 10) => {
     mapApi?.flyTo([lng, lat], zoom);
   };
 
-  const handleAddSampleMarkers = () => {
+  // Load real reports
+  const loadReports = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      const data = await fetchHazardReports({
+        includeTest: demoMode,
+        limit: 100,
+      });
+      setReports(data);
+    } catch {
+      setReports([]);
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [demoMode]);
+
+  useEffect(() => {
+    loadReports();
+  }, [loadReports]);
+
+  // Realtime subscription
+  useEffect(() => {
+    const unsub = subscribeToHazardReports(({ eventType, newReport }) => {
+      if (!newReport) return;
+      if (!demoMode && newReport.is_test) return;
+
+      setReports((prev) => {
+        if (eventType === 'INSERT') {
+          if (prev.some((r) => r.id === newReport.id)) return prev;
+          return [newReport, ...prev];
+        }
+        if (eventType === 'UPDATE') {
+          return prev.map((r) => (r.id === newReport.id ? { ...r, ...newReport } : r));
+        }
+        if (eventType === 'DELETE') {
+          return prev.filter((r) => r.id !== newReport.id);
+        }
+        return prev;
+      });
+    });
+
+    return () => unsub();
+  }, [demoMode]);
+
+  // Render report markers on map
+  useEffect(() => {
     if (!mapApi) return;
 
-    // Clear existing sample markers
+    // Clear previous markers
     markersRef.current.forEach((m) => m.remove());
     markersRef.current = [];
 
-    // Sample markers demonstrating risk colour tokens & Lucide icons from Doc 02 section 4
-    const samples = [
-      {
-        lngLat: [77.165, 31.095] as [number, number], // Shimla NH5 Landslide
-        icon: 'triangle-alert',
-        color: '#C2410C', // --risk-high
-        bgSoftColor: '#FFEDD5',
-        popup: {
-          title: 'NH5 Landslide (Shimla Bypass)',
-          description: 'Both lanes partially blocked by mud and boulders. Clearing operations underway.',
-          badge: 'High Risk',
-        },
-        isTest: true,
-      },
-      {
-        lngLat: [77.182, 32.247] as [number, number], // Manali River Flood
-        icon: 'siren',
-        color: '#B91C1C', // --risk-severe
-        bgSoftColor: '#FEE2E2',
-        popup: {
-          title: 'Beas River Water Overtopping',
-          description: 'Low-lying road flooded. High-clearance vehicles only.',
-          badge: 'Severe Risk',
-        },
-        isTest: true,
-      },
-      {
-        lngLat: [91.7362, 26.1445] as [number, number], // Guwahati Safe Hub
-        icon: 'shield-check',
-        color: '#15803D', // --risk-low
-        bgSoftColor: '#E7F5EC',
-        popup: {
-          title: 'Guwahati Transit Hub',
-          description: 'Safe corridor verified. No hazard reports along access road.',
-          badge: 'Low Risk',
-        },
-      },
-    ];
+    reports.forEach((rep) => {
+      const isVerified = rep.status === 'verified';
+      const color = isVerified
+        ? '#15803D'
+        : rep.severity >= 3
+          ? '#EF4444'
+          : '#F97316';
 
-    samples.forEach((sample) => {
-      const handle = mapApi.addMarker(sample);
+      const icon =
+        rep.type === 'road_blocked'
+          ? 'ban'
+          : rep.type === 'landslide'
+            ? 'siren'
+            : 'triangle-alert';
+
+      const handle = mapApi.addMarker({
+        lngLat: rep.coordinates,
+        icon,
+        color,
+        bgSoftColor: isVerified ? '#E7F5EC' : '#FEF2F2',
+        isTest: rep.is_test,
+        size: 34,
+        popup: {
+          title: `${rep.type.replace('_', ' ').toUpperCase()} (${rep.status})`,
+          description: rep.description || 'Hazard observation. Click for details.',
+          badge: isVerified ? 'Verified' : 'Pending Review',
+        },
+      });
+
       markersRef.current.push(handle);
     });
-
-    setMarkersCount(markersRef.current.length);
-  };
-
-  const handleClearMarkers = () => {
-    mapApi?.clearMarkers();
-    markersRef.current = [];
-    setMarkersCount(0);
-  };
+  }, [mapApi, reports]);
 
   return (
     <div className="max-w-[1200px] w-full mx-auto px-4 py-6 flex flex-col gap-5">
@@ -89,11 +128,14 @@ export const MapPage: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <div className="flex items-center gap-2 mb-1">
-            <h1 className="text-h2 font-bold text-brand">Hazard Map</h1>
-            <Badge variant="brand">PMTiles Vector Engine</Badge>
+            <h1 className="text-h2 font-bold text-brand">Live Hazard Map</h1>
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-chip text-[11px] font-mono font-medium bg-surface text-text-3 border border-border">
+              <Radio size={10} className="text-accent animate-pulse" />
+              Live Feed ({reports.length})
+            </span>
           </div>
           <p className="text-body text-text-2">
-            Offline-capable vector basemap powered by MapLibre GL and local Protomaps extracts.
+            Realtime vector map showing peer-verified hazards, landslides, and road obstructions.
           </p>
         </div>
 
@@ -124,6 +166,15 @@ export const MapPage: React.FC = () => {
           >
             India Overview
           </Button>
+
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => setIsModalOpen(true)}
+            icon={<Plus size={14} />}
+          >
+            Report Hazard
+          </Button>
         </div>
       </div>
 
@@ -139,6 +190,28 @@ export const MapPage: React.FC = () => {
           showLegend={true}
           className="h-full w-full"
         />
+
+        {/* Floating Quick Action Overlay if clicked */}
+        {lastClickedCoords && (
+          <div className="absolute bottom-4 left-4 z-10 bg-white/95 backdrop-blur-sm p-3 rounded-card shadow-md border border-border flex items-center gap-3 text-xs">
+            <div className="font-mono">
+              <span className="text-text-3 block text-[10px]">Clicked point</span>
+              <strong className="text-text">
+                {lastClickedCoords.lat.toFixed(4)}°N, {lastClickedCoords.lng.toFixed(4)}°E
+              </strong>
+            </div>
+
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => setIsModalOpen(true)}
+              icon={<Plus size={12} />}
+              className="text-xs"
+            >
+              Report Hazard Here
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Map Diagnostics & Testing Controls Bar */}
@@ -150,31 +223,21 @@ export const MapPage: React.FC = () => {
           </span>
 
           <Button
-            variant="secondary"
+            variant="ghost"
             size="sm"
-            onClick={handleAddSampleMarkers}
-            icon={<PlusCircle size={14} className="text-risk-low" />}
+            onClick={loadReports}
+            disabled={isRefreshing}
+            icon={<RefreshCw size={13} className={isRefreshing ? 'animate-spin' : ''} />}
           >
-            Add Sample Hazard Markers ({markersCount})
+            Sync Live Hazards ({reports.length})
           </Button>
-
-          {markersCount > 0 && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleClearMarkers}
-              icon={<RotateCcw size={14} />}
-            >
-              Clear Markers
-            </Button>
-          )}
         </div>
 
         {lastClickedCoords && (
           <div className="flex items-center gap-1.5 text-text-2 bg-white px-2.5 py-1.5 rounded-btn border border-border font-mono text-[11px]">
             <MapPin size={12} className="text-accent shrink-0" />
             <span>
-              Clicked:{' '}
+              Pinned:{' '}
               <strong className="text-brand">
                 {lastClickedCoords.lat.toFixed(5)}, {lastClickedCoords.lng.toFixed(5)}
               </strong>
@@ -182,6 +245,25 @@ export const MapPage: React.FC = () => {
           </div>
         )}
       </Card>
+
+      {/* Report Modal */}
+      <ReportModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        defaultCoordinates={
+          lastClickedCoords
+            ? [lastClickedCoords.lng, lastClickedCoords.lat]
+            : [77.1734, 31.1048]
+        }
+        onReportCreated={loadReports}
+      />
+
+      {/* Report Detail Drawer */}
+      <ReportDetailDrawer
+        report={selectedReport}
+        isOpen={Boolean(selectedReport)}
+        onClose={() => setSelectedReport(null)}
+      />
     </div>
   );
 };

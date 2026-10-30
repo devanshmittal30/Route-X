@@ -142,3 +142,4 @@ export const DATA_SOURCES = {
     endpoint: 'https://earthquake.usgs.gov/fdsnws/event/1/query',
   },
 } as const;
+

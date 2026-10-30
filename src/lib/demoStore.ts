@@ -17,3 +17,4 @@ export const useDemoStore = create<DemoState>((set) => ({
   setDemoMode: (enabled: boolean) => set({ demoMode: enabled }),
   toggleDemoMode: () => set((state) => ({ demoMode: !state.demoMode })),
 }));
+

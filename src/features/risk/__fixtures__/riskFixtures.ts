@@ -108,3 +108,4 @@ export const SAMPLE_QUAKE_75KM: EarthquakeRiskItem = {
   distanceKm: 75,
   place: '75km N of Mandi',
 };
+

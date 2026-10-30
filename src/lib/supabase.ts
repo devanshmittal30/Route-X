@@ -1,5 +1,34 @@
 import { createClient } from '@supabase/supabase-js';
 
+// Polyfill minimal WebSocket in Node.js test environments if native WebSocket is absent
+if (typeof globalThis.WebSocket === 'undefined') {
+  class MockWebSocket {
+    static readonly CONNECTING = 0;
+    static readonly OPEN = 1;
+    static readonly CLOSING = 2;
+    static readonly CLOSED = 3;
+    readonly CONNECTING = 0;
+    readonly OPEN = 1;
+    readonly CLOSING = 2;
+    readonly CLOSED = 3;
+    readyState = 0;
+    onopen = null;
+    onclose = null;
+    onerror = null;
+    onmessage = null;
+    constructor() {}
+    close() {}
+    send() {}
+    addEventListener() {}
+    removeEventListener() {}
+    dispatchEvent() {
+      return true;
+    }
+  }
+  // @ts-expect-error Mock WebSocket for Node test runner
+  globalThis.WebSocket = MockWebSocket;
+}
+
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://placeholder.supabase.co';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || 'placeholder-anon-key';
 
