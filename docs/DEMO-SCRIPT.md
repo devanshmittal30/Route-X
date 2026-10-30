@@ -175,3 +175,4 @@ If any external API, network connection, or hardware hiccup occurs during the li
 5. [ ] **Test Two Accounts:** Open primary account in main window, test voter account in secondary window.
 6. [ ] **Check Secrets:** Verify Supabase Edge Function `gemini-chat` responds with HTTP 200 to test ping.
 7. [ ] **Check Console:** Ensure DevTools console is clean of unhandled exceptions or red errors.
+
