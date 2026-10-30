@@ -27,6 +27,7 @@ import {
 import { WeatherBox } from '../components/weather/WeatherBox';
 import { AlertsStrip } from '../components/weather/AlertsStrip';
 import { LocationPicker } from '../features/location/LocationPicker';
+import { reverseGeocodeLocation } from '../features/location/geocodingClient';
 import type { SelectedLocation } from '../features/location/types';
 import { fetchLocationWeather } from '../features/weather/openMeteoClient';
 import type { WeatherSummary, WeatherAlert, AreaRiskEstimate } from '../features/weather/types';
@@ -64,8 +65,16 @@ export const HomePage: React.FC = () => {
   const { profile } = useAuth();
   const demoMode = useDemoStore((state) => state.demoMode);
 
-  // Location State
-  const [location, setLocation] = useState<SelectedLocation>(DEFAULT_LOCATION);
+  // Location State (persisted in localStorage or DEFAULT_LOCATION)
+  const [location, setLocation] = useState<SelectedLocation>(() => {
+    try {
+      const saved = localStorage.getItem('routex_user_location');
+      if (saved) return JSON.parse(saved);
+    } catch {
+      // Fall through
+    }
+    return DEFAULT_LOCATION;
+  });
   const [isLocatingDevice, setIsLocatingDevice] = useState<boolean>(false);
 
   // Weather & Hazards State
@@ -304,6 +313,37 @@ export const HomePage: React.FC = () => {
     loadStats();
   }, []);
 
+  // Auto-request device location on initial mount if browser permits
+  useEffect(() => {
+    // Only attempt auto-location if user hasn't manually chosen a location yet
+    const hasSavedLoc = typeof localStorage !== 'undefined' && localStorage.getItem('routex_user_location');
+    if (!hasSavedLoc && typeof navigator !== 'undefined' && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          const lat = Number(pos.coords.latitude.toFixed(4));
+          const lon = Number(pos.coords.longitude.toFixed(4));
+          const name = await reverseGeocodeLocation(lat, lon);
+          const liveLoc: SelectedLocation = {
+            name,
+            latitude: lat,
+            longitude: lon,
+            isDeviceLocation: true,
+          };
+          setLocation(liveLoc);
+          try {
+            localStorage.setItem('routex_user_location', JSON.stringify(liveLoc));
+          } catch {
+            // Non-fatal if localStorage is restricted
+          }
+        },
+        () => {
+          // Default location kept if user hasn't granted permission yet
+        },
+        { timeout: 7000, enableHighAccuracy: false, maximumAge: 300000 }
+      );
+    }
+  }, []);
+
   // Device Geolocation Handler
   const handleUseDeviceLocation = () => {
     if (!navigator.geolocation) {
@@ -313,22 +353,30 @@ export const HomePage: React.FC = () => {
 
     setIsLocatingDevice(true);
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
+      async (pos) => {
         setIsLocatingDevice(false);
+        const lat = Number(pos.coords.latitude.toFixed(4));
+        const lon = Number(pos.coords.longitude.toFixed(4));
+        const name = await reverseGeocodeLocation(lat, lon);
         const newLoc: SelectedLocation = {
-          name: `Current Location (${pos.coords.latitude.toFixed(3)}, ${pos.coords.longitude.toFixed(3)})`,
-          latitude: Number(pos.coords.latitude.toFixed(4)),
-          longitude: Number(pos.coords.longitude.toFixed(4)),
+          name,
+          latitude: lat,
+          longitude: lon,
           isDeviceLocation: true,
         };
         setLocation(newLoc);
+        try {
+          localStorage.setItem('routex_user_location', JSON.stringify(newLoc));
+        } catch {
+          // Non-fatal if localStorage is restricted
+        }
       },
       (err) => {
         setIsLocatingDevice(false);
         console.warn('Geolocation error:', err.message);
-        alert('Could not access your location. Please check browser permissions or select a city.');
+        alert('Could not access your location. Please check browser permissions or search for a city in the picker.');
       },
-      { timeout: 10000, enableHighAccuracy: true }
+      { timeout: 10000, enableHighAccuracy: false, maximumAge: 60000 }
     );
   };
 
@@ -355,7 +403,14 @@ export const HomePage: React.FC = () => {
           <span className="text-xs text-text-3 font-medium">Weather for:</span>
           <LocationPicker
             currentLocation={location}
-            onSelectLocation={(loc) => setLocation(loc)}
+            onSelectLocation={(loc) => {
+              setLocation(loc);
+              try {
+                localStorage.setItem('routex_user_location', JSON.stringify(loc));
+              } catch {
+                // Non-fatal if localStorage is restricted
+              }
+            }}
             onUseDeviceLocation={handleUseDeviceLocation}
             isLocatingDevice={isLocatingDevice}
           />

@@ -46,3 +46,31 @@ export async function searchPlaces(query: string): Promise<SelectedLocation[]> {
   }
 }
 
+/**
+ * Reverse geocodes coordinates to city/region name via BigDataCloud client API with fallback.
+ */
+export async function reverseGeocodeLocation(lat: number, lon: number): Promise<string> {
+  try {
+    const url = `https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`;
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 4000);
+    const res = await fetch(url, { signal: controller.signal });
+    clearTimeout(timer);
+
+    if (res.ok) {
+      const data = await res.json();
+      const city = data.city || data.locality;
+      const state = data.principalSubdivision;
+      const country = data.countryName || 'India';
+      if (city && state) return `${city}, ${state}`;
+      if (city) return `${city}, ${country}`;
+      if (state) return `${state}, ${country}`;
+    }
+  } catch {
+    // Non-fatal, fallback to formatted coordinates
+  }
+
+  return `Current Location (${lat.toFixed(2)}, ${lon.toFixed(2)})`;
+}
+
+
