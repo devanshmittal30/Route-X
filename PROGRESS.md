@@ -48,6 +48,8 @@
 - **MCP & Repository Setup**:
   - Configured Supabase MCP server in `~/.gemini/antigravity/mcp_config.json` (`project_ref=uvtxpwnjvvxasjtopdby`).
   - Connected Git remote `origin` to `https://github.com/devanshmittal30/Route-X.git`.
+  - Configured project environment with live Supabase credentials (`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`).
+  - Automatically provisioned the public storage bucket `report-photos` on Supabase with 3 MB size limit and image MIME restrictions.
 
 ## In progress
 - Ready for P4 (Map foundation with PMTiles).
