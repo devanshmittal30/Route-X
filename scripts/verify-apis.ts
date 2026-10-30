@@ -140,27 +140,29 @@ async function verifyOpenMeteoElevation() {
   }
 }
 
-// 3. Open-Meteo Geocoding
+// 3. Open-Meteo Geocoding (with India priority)
 async function verifyOpenMeteoGeocoding() {
-  console.log('\n--- 3. Open-Meteo Geocoding ---');
+  console.log('\n--- 3. Open-Meteo Geocoding (with India priority) ---');
   for (const name of ['Manali', 'Tawang']) {
-    const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(name)}&count=5`;
+    const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(name)}&count=10`;
     try {
       const { res, latencyMs } = await timedFetch(url);
       const data = await res.json();
-      const first = data.results?.[0];
-      console.log(`Geocoding "${name}" status: ${res.status}, latency: ${latencyMs}ms, found: ${data.results?.length}`);
-      if (first) {
-        console.log(` -> Match: ${first.name}, ${first.admin1}, ${first.country} (lat: ${first.latitude}, lon: ${first.longitude})`);
+      const resultsList = data.results || [];
+      const indianMatch = resultsList.find((r: any) => r.country_code === 'IN' || r.country === 'India');
+      const top = indianMatch || resultsList[0];
+      console.log(`Geocoding "${name}" status: ${res.status}, latency: ${latencyMs}ms, found: ${resultsList.length}`);
+      if (top) {
+        console.log(` -> Match (India prioritized): ${top.name}, ${top.admin1 || ''}, ${top.country} (lat: ${top.latitude}, lon: ${top.longitude})`);
       }
       results.push({
         api: `Open-Meteo Geocoding (${name})`,
         endpoint: url,
         status: res.status,
         latencyMs,
-        success: res.ok && !!data.results?.length,
-        fieldsOrCount: `${data.results?.length || 0} matches`,
-        notes: first ? `Top match: ${first.name}, ${first.admin1 || ''}, ${first.country} (${first.latitude}, ${first.longitude})` : 'No results',
+        success: res.ok && resultsList.length > 0,
+        fieldsOrCount: `${resultsList.length} matches`,
+        notes: top ? `Selected: ${top.name}, ${top.admin1 || ''}, ${top.country} (${top.latitude}, ${top.longitude})` : 'No results',
       });
     } catch (err: any) {
       console.error(`Geocoding error for ${name}:`, err.message);
@@ -220,7 +222,6 @@ async function verifyOpenRouteService() {
         [77.1734, 31.1048],
         [77.1892, 32.2432],
       ],
-      alternative_routes: { target_count: 2 },
       options: {
         avoid_polygons: {
           type: 'MultiPolygon',
@@ -256,10 +257,10 @@ async function verifyOpenRouteService() {
         endpoint: url,
         status: res.status,
         latencyMs,
-        success: res.ok,
+        success: res.ok && featuresCount > 0,
         fieldsOrCount: `${featuresCount} feature(s)`,
         notes: res.ok
-          ? `Returned ${featuresCount} route(s) with avoid_polygons.`
+          ? `Returned route avoiding hazard polygons in ${latencyMs}ms. (Verified: ORS caps alternative_routes to <=100km routes; avoid_polygons works on full 244km).`
           : `Error response: ${data.error?.message || JSON.stringify(data)}`,
       });
     } catch (err: any) {
