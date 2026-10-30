@@ -118,8 +118,9 @@ export const RoutePage: React.FC = () => {
   const [isReRouting, setIsReRouting] = useState<boolean>(false);
   const [reRouteProgress, setReRouteProgress] = useState<string | null>(null);
 
-  // Map & Markers Ref
+  // Map & Markers Ref & State
   const mapApiRef = useRef<LayerManagerAPI | null>(null);
+  const [mapApi, setMapApi] = useState<LayerManagerAPI | null>(null);
   const startMarkerRef = useRef<MarkerHandle | null>(null);
   const endMarkerRef = useRef<MarkerHandle | null>(null);
   const hazardMarkersRef = useRef<MarkerHandle[]>([]);
@@ -422,9 +423,9 @@ export const RoutePage: React.FC = () => {
       }, routes[0]?.id || '')
     : null;
 
-  // Update map layers and markers when routes, selection, or risk change
+  // Update map layers and markers when routes, selection, risk, or mapApi ready
   useEffect(() => {
-    const api = mapApiRef.current;
+    const api = mapApi;
     if (!api) return;
 
     // 1. Remove previous route layers
@@ -598,15 +599,20 @@ export const RoutePage: React.FC = () => {
         if (lat > maxLat) maxLat = lat;
       });
 
+      const isMobile = typeof window !== 'undefined' && window.innerWidth < 1024;
       api.fitToBounds(
         [
           [minLng, minLat],
           [maxLng, maxLat],
         ],
-        { padding: { top: 60, bottom: 60, left: 380, right: 60 } }
+        {
+          padding: isMobile
+            ? { top: 40, bottom: 40, left: 40, right: 40 }
+            : { top: 60, bottom: 60, left: 390, right: 60 },
+        }
       );
     }
-  }, [routes, selectedRouteId, fromPlace, toPlace, routeRisks]);
+  }, [mapApi, routes, selectedRouteId, fromPlace, toPlace, routeRisks]);
 
   // Map Click handler for picking Origin / Destination
   const handleMapClick = (coords: { lat: number; lng: number }) => {
@@ -1092,6 +1098,7 @@ export const RoutePage: React.FC = () => {
           initialZoom={9}
           onMapReady={(api) => {
             mapApiRef.current = api;
+            setMapApi(api);
           }}
           onMapClick={handleMapClick}
           showControls={true}

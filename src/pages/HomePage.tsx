@@ -98,6 +98,7 @@ export const HomePage: React.FC = () => {
   const [selectedReportForDrawer, setSelectedReportForDrawer] = useState<HazardReport | null>(null);
   const [isReportModalOpen, setIsReportModalOpen] = useState<boolean>(false);
   const miniMapApiRef = useRef<LayerManagerAPI | null>(null);
+  const [miniMapApi, setMiniMapApi] = useState<LayerManagerAPI | null>(null);
   const mapMarkersRef = useRef<MarkerHandle[]>([]);
 
   // Load weather and quakes for selected location
@@ -230,7 +231,7 @@ export const HomePage: React.FC = () => {
 
   // Update Mini Map Markers with latest hazard reports (P8)
   useEffect(() => {
-    const api = miniMapApiRef.current;
+    const api = miniMapApi;
     if (!api) return;
 
     mapMarkersRef.current.forEach((m: MarkerHandle) => m.remove());
@@ -267,7 +268,7 @@ export const HomePage: React.FC = () => {
 
       mapMarkersRef.current.push(handle);
     });
-  }, [latestReports]);
+  }, [miniMapApi, latestReports]);
 
   // Load Real Statistics from Database
   useEffect(() => {
@@ -703,6 +704,7 @@ export const HomePage: React.FC = () => {
               initialZoom={9}
               onMapReady={(api) => {
                 miniMapApiRef.current = api;
+                setMiniMapApi(api);
               }}
               showControls={true}
               showLegend={false}

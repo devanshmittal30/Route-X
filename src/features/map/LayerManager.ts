@@ -29,60 +29,71 @@ export class LayerManager implements LayerManagerAPI {
     style?: MapLayerStyle,
     name: string = id
   ): void {
-    if (!this.map.isStyleLoaded()) {
-      this.map.once('load', () => this.addGeoJSONLayer(id, data, style, name));
-      return;
-    }
+    const applyLayer = () => {
+      try {
+        const sourceId = `src-${id}`;
+        const existingSource = this.map.getSource(sourceId) as GeoJSONSource | undefined;
 
-    const sourceId = `src-${id}`;
-    const existingSource = this.map.getSource(sourceId) as GeoJSONSource | undefined;
+        if (existingSource) {
+          if (typeof data !== 'string') {
+            existingSource.setData(data);
+          }
+        } else {
+          this.map.addSource(sourceId, {
+            type: 'geojson',
+            data,
+          });
 
-    if (existingSource) {
-      if (typeof data !== 'string') {
-        existingSource.setData(data);
+          const layerType = style?.type || 'line';
+          const paint = style?.paint || {
+            'line-color': '#0B3C5D',
+            'line-width': 3,
+          };
+          const layout = {
+            visibility: 'visible',
+            ...(style?.layout || {}),
+          };
+
+          const layerSpec: AddLayerObject = {
+            id,
+            source: sourceId,
+            type: layerType,
+            paint: paint as Record<string, unknown>,
+            layout: layout as Record<string, unknown>,
+          } as unknown as AddLayerObject;
+
+          this.map.addLayer(layerSpec, style?.beforeId);
+
+          this.layers.set(id, {
+            id,
+            name,
+            visible: true,
+          });
+          this.notify();
+        }
+      } catch (err) {
+        console.warn(`[LayerManager] Could not add layer ${id}:`, err);
       }
+    };
+
+    if (this.map.isStyleLoaded()) {
+      applyLayer();
     } else {
-      this.map.addSource(sourceId, {
-        type: 'geojson',
-        data,
-      });
-
-      const layerType = style?.type || 'line';
-      const paint = style?.paint || {
-        'line-color': '#0B3C5D',
-        'line-width': 3,
-      };
-      const layout = {
-        visibility: 'visible',
-        ...(style?.layout || {}),
-      };
-
-      const layerSpec: AddLayerObject = {
-        id,
-        source: sourceId,
-        type: layerType,
-        paint: paint as Record<string, unknown>,
-        layout: layout as Record<string, unknown>,
-      } as unknown as AddLayerObject;
-
-      this.map.addLayer(layerSpec, style?.beforeId);
-
-      this.layers.set(id, {
-        id,
-        name,
-        visible: true,
-      });
-      this.notify();
+      this.map.once('styledata', applyLayer);
     }
   }
 
   removeLayer(id: string): void {
     const sourceId = `src-${id}`;
-    if (this.map.getLayer(id)) {
-      this.map.removeLayer(id);
-    }
-    if (this.map.getSource(sourceId)) {
-      this.map.removeSource(sourceId);
+    try {
+      if (this.map.getLayer(id)) {
+        this.map.removeLayer(id);
+      }
+      if (this.map.getSource(sourceId)) {
+        this.map.removeSource(sourceId);
+      }
+    } catch {
+      // Ignore cleanup error if style is transitioning
     }
     if (this.layers.has(id)) {
       this.layers.delete(id);

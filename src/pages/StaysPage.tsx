@@ -55,6 +55,7 @@ export const StaysPage: React.FC = () => {
 
   // Map state
   const mapApiRef = useRef<LayerManagerAPI | null>(null);
+  const [mapApi, setMapApi] = useState<LayerManagerAPI | null>(null);
   const markersRef = useRef<MarkerHandle[]>([]);
   const [selectedStay, setSelectedStay] = useState<StayCandidate | null>(null);
 
@@ -132,9 +133,9 @@ export const StaysPage: React.FC = () => {
     });
   }, [allStays, safeOnly, selectedCategory]);
 
-  // Update Map markers when filteredStays or viewMode changes
+  // Update Map markers when filteredStays, mapApi, or viewMode changes
   useEffect(() => {
-    const api = mapApiRef.current;
+    const api = mapApi;
     if (!api || viewMode !== 'map') return;
 
     // Clear previous markers
@@ -171,7 +172,7 @@ export const StaysPage: React.FC = () => {
 
     // Fly to center
     api.flyTo([location.longitude, location.latitude], 12);
-  }, [filteredStays, viewMode, location]);
+  }, [mapApi, filteredStays, viewMode, location]);
 
   return (
     <div className="max-w-[1200px] w-full mx-auto px-4 py-8">
@@ -428,6 +429,7 @@ export const StaysPage: React.FC = () => {
               initialZoom={12}
               onMapReady={(api) => {
                 mapApiRef.current = api;
+                setMapApi(api);
               }}
               onMapClick={(coords) => {
                 // Find closest stay if clicked near one

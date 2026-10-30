@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import { AlertTriangle, MapPin, DownloadCloud } from 'lucide-react';
+import { AlertTriangle, MapPin } from 'lucide-react';
 import type { RouteXMapProps, MapLayerItem, PmtilesFileInfo } from '../../features/map/types';
 import {
   registerPmtilesProtocol,
@@ -185,19 +185,15 @@ export const RouteXMap: React.FC<RouteXMapProps> = ({
       {/* MapLibre Canvas Container */}
       <div ref={containerRef} className="w-full h-full min-h-[420px]" />
 
-      {/* Missing Local PMTiles Friendly Banner */}
-      {fileMissing && (
+      {/* Missing Local PMTiles Friendly Banner - only when offline and no local pack */}
+      {fileMissing && typeof navigator !== 'undefined' && !navigator.onLine && (
         <div className="absolute top-3 left-3 right-14 z-10 sm:max-w-md bg-white/95 backdrop-blur-sm border border-border shadow-sm rounded-btn p-2.5 text-xs text-text transition-all animate-fadeIn">
           <div className="flex items-start gap-2">
             <AlertTriangle size={16} className="text-risk-moderate shrink-0 mt-0.5" />
             <div className="flex-1">
-              <p className="font-semibold text-brand">Offline Map File Missing</p>
+              <p className="font-semibold text-brand">Offline Map File Not Downloaded</p>
               <p className="text-text-2 mt-0.5">
-                Local basemap <code className="bg-surface-2 px-1 py-0.5 rounded font-mono text-[11px]">{activeRegion.filename}</code> is not in <code className="bg-surface-2 px-1 py-0.5 rounded font-mono text-[11px]">public/maps/</code>.
-              </p>
-              <p className="text-text-3 mt-1 flex items-center gap-1 text-[11px]">
-                <DownloadCloud size={12} className="text-accent" />
-                Run <span className="font-mono bg-surface-2 px-1 rounded">scripts/extract-pmtiles.sh</span> to enable full offline vector tiles.
+                Regional basemap <code className="bg-surface-2 px-1 py-0.5 rounded font-mono text-[11px]">{activeRegion.filename}</code> is not saved locally. Visit Offline Maps to download.
               </p>
             </div>
           </div>
@@ -208,6 +204,7 @@ export const RouteXMap: React.FC<RouteXMapProps> = ({
       <div className="absolute bottom-3 left-3 z-10 flex flex-wrap items-center gap-1.5 pointer-events-none">
         <span className="inline-flex items-center gap-1 bg-white/90 backdrop-blur-sm border border-border text-[11px] font-mono px-2 py-0.5 rounded-chip text-text-2 shadow-xs">
           Region: <strong className="text-brand font-medium">{activeRegion.name}</strong>
+          {fileMissing && <span className="text-[10px] text-text-3 font-normal">(Live OSM)</span>}
         </span>
 
         {clickedLocation && (

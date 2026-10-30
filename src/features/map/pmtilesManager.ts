@@ -160,20 +160,34 @@ export function buildPmtilesMapStyle(pmtilesUrl: string): StyleSpecification {
 }
 
 /**
- * Fallback style when local PMTiles files have not been extracted yet.
- * Renders a clean light surface so all map features, layers, and markers operate smoothly.
+ * Fallback style when local PMTiles files have not been extracted into public/maps/ yet.
+ * Uses high-performance OpenStreetMap CartoDB Voyager raster tiles so all roads,
+ * terrain, towns, and mountains render smoothly with zero configuration.
  */
 export function buildFallbackMapStyle(): StyleSpecification {
   return {
     version: 8,
-    sources: {},
+    sources: {
+      carto: {
+        type: 'raster',
+        tiles: [
+          'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+          'https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+          'https://c.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+          'https://d.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png',
+        ],
+        tileSize: 256,
+        attribution:
+          '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>, © <a href="https://carto.com/attributions" target="_blank" rel="noopener noreferrer">CARTO</a>',
+      },
+    },
     layers: [
       {
-        id: 'background',
-        type: 'background',
-        paint: {
-          'background-color': '#F6F8FB', // --surface neutral token
-        },
+        id: 'carto-tiles',
+        type: 'raster',
+        source: 'carto',
+        minzoom: 0,
+        maxzoom: 20,
       },
     ],
   };
