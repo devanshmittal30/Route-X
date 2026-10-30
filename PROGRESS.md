@@ -349,8 +349,37 @@ Follow these steps to manually verify the complete offline experience:
    - Reconnect to the network (DevTools Network $\rightarrow$ **No throttling**, or re-enable Wi-Fi).
    - The global offline banner disappears, the queue automatically flushes to Supabase, and the pending count drops to 0.
 
+- **P14 Auto Re-Route, Saved Routes, Alerts, and Notifications**:
+  - Built Auto Re-Route engine in `src/features/routing/rerouteService.ts`:
+    - Auto Re-Route button displays strictly when the recommended route score is `High`, `Severe`, or `Blocked`.
+    - Generates 400 m circular buffer polygons around verified blocked/landslide reports and segments scoring $\ge 75$ (using Turf `circle`, 16 steps) into a GeoJSON `MultiPolygon`.
+    - Dispatches to OpenRouteService Directions API (`driving-car` for Drive, `foot-hiking` for Walk) with `options.avoid_polygons`, 8 s timeout, and automatic retry.
+    - Gracefully handles unroutable corridors with Doc 03 section 7 fallback notice: *"No route found that avoids the hazard; showing the lowest-risk option"*.
+    - Scores alternative route with risk engine and presents `ReRouteComparisonCard` comparing risk level, score delta, distance delta, duration delta, and hazards avoided.
+    - "Switch to Safer Route" applies the safer alternative and updates route line and segment risk colors.
+  - Built Saved Routes system (`src/features/routing/savedRoutesService.ts`, `SavedRoutesModal.tsx`):
+    - Authenticated users can save planned routes to Supabase `saved_routes` with origin/destination labels, travel mode, geometry, and snapshot risk score.
+    - "Save Route" button in `RoutePage.tsx` with immediate feedback and toast notifications.
+    - `SavedRoutesModal` allows opening saved routes directly from Route planning.
+    - URL parameter `savedRouteId`: automatically loads the saved route geometry and triggers a live risk re-scoring on mount.
+    - Added Saved Mountain Routes section to `ProfilePage.tsx` with inspect, re-score, and delete capabilities.
+  - Built Live Disaster & Route Alerts Page (`src/pages/AlertsPage.tsx`, `src/features/alerts/`):
+    - Current location alerts: IMD heavy rainfall warnings (Heavy 64.5-115.5 mm, Very Heavy 115.6-204.4 mm, Extremely Heavy > 204.4 mm), wind gusts $\ge 50$ km/h, mountain snowfall $\ge 5$ cm, USGS earthquakes M4.5+ within 300 km, and verified hazards within 15 km.
+    - Saved route alerts: corridor blockage checks via `reports_along_route` within 5 km buffer, and risk level escalation alerts comparing live score against saved snapshot.
+    - Each alert displays severity color badges (`Low`, `Moderate`, `High`, `Severe`, `Critical`), verified sources, and timestamps.
+    - SMS Simulation trigger: critical alerts open `SmsSimulationModal` showing formatted distress dispatch.
+  - Built Notification Service (`src/features/alerts/notificationService.ts`):
+    - Explains notification permissions clearly with "Enable Notifications" banner.
+    - Emits HTML5 browser notifications and in-app toasts for route risk escalation and nearby verified hazards.
+    - Deduplication engine (`routex_notified_alerts_v1`) guarantees alerts fire strictly once per change (zero spam).
+    - Added floating in-app toast notification stack to `AppShell.tsx`.
+  - Added unit test suites:
+    - `src/features/routing/routing.test.ts`: 3 new tests covering hazard point extraction, 400 m MultiPolygon generation, and fallback notice handling.
+    - `src/features/alerts/alerts.test.ts`: 3 unit tests verifying notification deduplication, anti-spam safeguards, and severity tiering.
+  - All 124 unit tests passing across 12 test files (`npm test`), `npm run typecheck`, `npm run lint`, and `npm run build` pass with 0 errors.
+
 ## In progress
-- Ready for next prompt / P14.
+- Ready for next prompt / P15.
 
 ## Questions for the user
 - None. Ready for next prompt.

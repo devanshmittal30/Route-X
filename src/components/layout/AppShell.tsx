@@ -6,6 +6,15 @@ import { MessageSquare, LifeBuoy, WifiOff } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { SafetyChatDrawer } from '../chat/SafetyChatDrawer';
 import { getPendingQueueCount } from '../../features/offline/queueService';
+import { Toast, type ToastType } from '../ui/Toast';
+import type { RouteXAlert } from '../../features/alerts/types';
+
+interface ActiveToast {
+  id: string;
+  type: ToastType;
+  title: string;
+  message?: string;
+}
 
 export interface AppShellProps {
   children: React.ReactNode;
@@ -18,6 +27,14 @@ export const AppShell: React.FC<AppShellProps> = ({ children, hideFooter = false
     typeof navigator !== 'undefined' ? navigator.onLine : true
   );
   const [queueCount, setQueueCount] = useState(0);
+  const [toasts, setToasts] = useState<ActiveToast[]>([]);
+
+  const addToast = (toast: ActiveToast) => {
+    setToasts((prev) => [...prev.filter((t) => t.id !== toast.id), toast]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== toast.id));
+    }, 6000);
+  };
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -27,15 +44,41 @@ export const AppShell: React.FC<AppShellProps> = ({ children, hideFooter = false
       setQueueCount(count);
     };
 
+    const handleAlert = (e: Event) => {
+      const alert = (e as CustomEvent<RouteXAlert>).detail;
+      if (!alert) return;
+      const toastType: ToastType =
+        alert.severity === 'critical' || alert.severity === 'severe'
+          ? 'danger'
+          : alert.severity === 'high'
+          ? 'warning'
+          : 'info';
+      addToast({
+        id: alert.id,
+        type: toastType,
+        title: alert.title,
+        message: alert.description,
+      });
+    };
+
+    const handleGenericToast = (e: Event) => {
+      const t = (e as CustomEvent<ActiveToast>).detail;
+      if (t) addToast(t);
+    };
+
     updateQueue();
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
     window.addEventListener('routex-queue-updated', updateQueue);
+    window.addEventListener('routex:alert', handleAlert);
+    window.addEventListener('routex:toast', handleGenericToast);
 
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
       window.removeEventListener('routex-queue-updated', updateQueue);
+      window.removeEventListener('routex:alert', handleAlert);
+      window.removeEventListener('routex:toast', handleGenericToast);
     };
   }, []);
 
@@ -92,6 +135,21 @@ export const AppShell: React.FC<AppShellProps> = ({ children, hideFooter = false
           <LifeBuoy className="w-6 h-6 animate-pulse" />
         </Link>
       </div>
+
+      {/* In-App Toast Container */}
+      {toasts.length > 0 && (
+        <div className="fixed top-20 right-4 z-50 flex flex-col gap-2 max-w-sm w-full pointer-events-auto">
+          {toasts.map((t) => (
+            <Toast
+              key={t.id}
+              type={t.type}
+              title={t.title}
+              message={t.message}
+              onClose={() => setToasts((prev) => prev.filter((item) => item.id !== t.id))}
+            />
+          ))}
+        </div>
+      )}
 
       {/* Bottom Footer */}
       {!hideFooter && <Footer />}

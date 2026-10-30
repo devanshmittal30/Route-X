@@ -30,6 +30,7 @@ import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { EmptyState } from '../components/ui/EmptyState';
 import { useDemoStore } from '../lib/demoStore';
+import { useAuth } from '../features/auth/AuthContext';
 import { scoreFullRoute } from '../features/risk/dataAdapters';
 import { RISK_LEVEL_BANDS } from '../features/risk/config';
 import type { RouteRiskScore } from '../features/risk/types';
@@ -38,6 +39,17 @@ import {
   getLastCachedRouteSnapshot,
   formatCachedAge,
 } from '../features/offline/routeSnapshotService';
+import {
+  calculateAutoReRoute,
+  type ReRouteComparison,
+} from '../features/routing/rerouteService';
+import { ReRouteComparisonCard } from '../components/routing/ReRouteComparisonCard';
+import {
+  saveRoute,
+  getSavedRouteById,
+  type SavedRoute,
+} from '../features/routing/savedRoutesService';
+import { SavedRoutesModal } from '../components/routing/SavedRoutesModal';
 
 // Default starting demo route: Shimla to Manali
 const DEFAULT_FROM_PLACE: GeocodedPlace = {
@@ -93,6 +105,18 @@ export const RoutePage: React.FC = () => {
   // Steps Accordion State
   const [showSteps, setShowSteps] = useState<boolean>(false);
   const [isCopied, setIsCopied] = useState<boolean>(false);
+
+  // Auth & Saved Routes State
+  const { user } = useAuth();
+  const [savedRoutesModalOpen, setSavedRoutesModalOpen] = useState<boolean>(false);
+  const [isSavingRoute, setIsSavingRoute] = useState<boolean>(false);
+  const [isRouteSaved, setIsRouteSaved] = useState<boolean>(false);
+  const isSavedRouteLoadingRef = useRef<boolean>(false);
+
+  // Auto Re-Route State (P14)
+  const [reRouteComparison, setReRouteComparison] = useState<ReRouteComparison | null>(null);
+  const [isReRouting, setIsReRouting] = useState<boolean>(false);
+  const [reRouteProgress, setReRouteProgress] = useState<string | null>(null);
 
   // Map & Markers Ref
   const mapApiRef = useRef<LayerManagerAPI | null>(null);
@@ -196,8 +220,100 @@ export const RoutePage: React.FC = () => {
     }
   }, [fromPlace, toPlace, mode]);
 
+  // Load saved route and trigger live re-scoring
+  const handleLoadSavedRoute = useCallback(
+    async (savedRoute: SavedRoute) => {
+      isSavedRouteLoadingRef.current = true;
+      setFromText(savedRoute.from_label);
+      setToText(savedRoute.to_label);
+      setMode(savedRoute.mode);
+      setReRouteComparison(null);
+
+      const coords = savedRoute.geometry.coordinates;
+      if (coords.length > 0) {
+        const startCoord = coords[0];
+        const endCoord = coords[coords.length - 1];
+        setFromPlace({
+          name: savedRoute.from_label,
+          displayName: savedRoute.from_label,
+          admin1: '',
+          country: 'India',
+          latitude: startCoord[1],
+          longitude: startCoord[0],
+        });
+        setToPlace({
+          name: savedRoute.to_label,
+          displayName: savedRoute.to_label,
+          admin1: '',
+          country: 'India',
+          latitude: endCoord[1],
+          longitude: endCoord[0],
+        });
+      }
+
+      const routeOpt: RouteOption = {
+        id: `saved-${savedRoute.id}`,
+        name: `${savedRoute.from_label} to ${savedRoute.to_label} (Saved)`,
+        distanceMeters: 244000,
+        durationSeconds: 19800,
+        geometry: savedRoute.geometry,
+        legs: [],
+        isRecommended: true,
+      };
+
+      setRoutes([routeOpt]);
+      setSelectedRouteId(routeOpt.id);
+      setIsScoring(true);
+      setScoringProgress('Re-scoring saved route with live conditions...');
+
+      try {
+        const freshRisk = await scoreFullRoute(savedRoute.geometry, demoMode, (step) => {
+          setScoringProgress(`Re-scoring: ${step}`);
+        });
+        setRouteRisks({
+          [routeOpt.id]: freshRisk,
+        });
+
+        window.dispatchEvent(
+          new CustomEvent('routex:toast', {
+            detail: {
+              id: `toast-rescore-${Date.now()}`,
+              type: 'info',
+              title: 'Saved Route Re-Scored',
+              message: `Live score: ${freshRisk.score}/100 (${freshRisk.level}). Previous snapshot was ${savedRoute.risk_score}/100.`,
+            },
+          })
+        );
+      } catch (err) {
+        console.warn('Re-score failed:', err);
+      } finally {
+        setIsScoring(false);
+        setScoringProgress(null);
+        setTimeout(() => {
+          isSavedRouteLoadingRef.current = false;
+        }, 1200);
+      }
+    },
+    [demoMode]
+  );
+
+  // Check savedRouteId query param on initial mount
+  useEffect(() => {
+    const savedRouteId = searchParams.get('savedRouteId');
+    if (savedRouteId) {
+      getSavedRouteById(savedRouteId).then((sr) => {
+        if (sr) {
+          handleLoadSavedRoute(sr);
+        }
+      });
+    }
+  }, [searchParams, handleLoadSavedRoute]);
+
   // Handle URL query parameters from Home search card on initial load
   useEffect(() => {
+    const savedRouteId = searchParams.get('savedRouteId');
+    if (savedRouteId) return; // Prioritize saved route loader
+
     const urlFrom = searchParams.get('from');
     const urlTo = searchParams.get('to');
     const urlMode = searchParams.get('mode') as RouteMode;
@@ -226,9 +342,9 @@ export const RoutePage: React.FC = () => {
     initFromParams();
   }, [searchParams]);
 
-  // Auto-calculate route when places or mode change
+  // Auto-calculate route when places or mode change (unless a saved route is actively being loaded)
   useEffect(() => {
-    if (fromPlace && toPlace) {
+    if (fromPlace && toPlace && !isSavedRouteLoadingRef.current) {
       calculateRoute();
     }
   }, [fromPlace, toPlace, mode, calculateRoute]);
@@ -537,6 +653,130 @@ export const RoutePage: React.FC = () => {
     routes.find((r) => r.id === selectedRouteId) || routes[0];
   const selectedRisk = selectedRoute ? routeRisks[selectedRoute.id] : undefined;
 
+  // Auto Re-route button visibility condition per P14 prompt:
+  // Shows ONLY if the recommended route is High, Severe or Blocked
+  const isHighSevereOrBlocked = Boolean(
+    selectedRisk &&
+      (selectedRisk.level === 'High' ||
+        selectedRisk.level === 'Severe' ||
+        selectedRisk.level === 'Blocked' ||
+        selectedRisk.isBlocked ||
+        selectedRisk.score >= 50)
+  );
+
+  const handleAutoReRoute = async () => {
+    if (!selectedRoute || !selectedRisk || !fromPlace || !toPlace) return;
+
+    setIsReRouting(true);
+    setReRouteProgress('Analyzing corridor hazards & 400m avoid buffer...');
+    try {
+      const comp = await calculateAutoReRoute({
+        originalRoute: selectedRoute,
+        originalRisk: selectedRisk,
+        start: [fromPlace.longitude, fromPlace.latitude],
+        end: [toPlace.longitude, toPlace.latitude],
+        mode,
+        demoMode,
+        onProgress: (p) => setReRouteProgress(p),
+      });
+      setReRouteComparison(comp);
+    } catch (err) {
+      console.warn('Auto re-route failed:', err);
+      window.dispatchEvent(
+        new CustomEvent('routex:toast', {
+          detail: {
+            id: `toast-reroute-fail-${Date.now()}`,
+            type: 'warning',
+            title: 'Auto Re-Route Notice',
+            message: 'No route found that avoids the hazard; showing the lowest-risk option.',
+          },
+        })
+      );
+    } finally {
+      setIsReRouting(false);
+      setReRouteProgress(null);
+    }
+  };
+
+  const handleApplySaferRoute = () => {
+    if (!reRouteComparison) return;
+    const safer = reRouteComparison.saferRoute;
+    const saferRisk = reRouteComparison.saferRisk;
+
+    setRoutes((prev) => [safer, ...prev.filter((r) => r.id !== safer.id)]);
+    setSelectedRouteId(safer.id);
+    setRouteRisks((prev) => ({
+      ...prev,
+      [safer.id]: saferRisk,
+    }));
+    setReRouteComparison(null);
+
+    window.dispatchEvent(
+      new CustomEvent('routex:toast', {
+        detail: {
+          id: `toast-applied-${Date.now()}`,
+          type: 'success',
+          title: 'Switched to Safer Route',
+          message: 'Diverted around verified hazard zones via OpenRouteService.',
+        },
+      })
+    );
+  };
+
+  const handleSaveCurrentRoute = async () => {
+    if (!user) {
+      window.dispatchEvent(
+        new CustomEvent('routex:toast', {
+          detail: {
+            id: `toast-login-req-${Date.now()}`,
+            type: 'warning',
+            title: 'Sign In Required',
+            message: 'Please sign in to save routes to your profile for continuous disaster monitoring.',
+          },
+        })
+      );
+      return;
+    }
+
+    if (!selectedRoute) return;
+
+    setIsSavingRoute(true);
+    try {
+      await saveRoute({
+        fromLabel: fromText,
+        toLabel: toText,
+        mode,
+        geometry: selectedRoute.geometry,
+        riskScore: selectedRisk?.score ?? 0,
+      });
+      setIsRouteSaved(true);
+      setTimeout(() => setIsRouteSaved(false), 3000);
+      window.dispatchEvent(
+        new CustomEvent('routex:toast', {
+          detail: {
+            id: `toast-saved-${Date.now()}`,
+            type: 'success',
+            title: 'Route Saved',
+            message: `Saved ${fromText} → ${toText} (${mode}) to your profile.`,
+          },
+        })
+      );
+    } catch (err) {
+      window.dispatchEvent(
+        new CustomEvent('routex:toast', {
+          detail: {
+            id: `toast-err-${Date.now()}`,
+            type: 'danger',
+            title: 'Failed to Save Route',
+            message: (err as Error).message,
+          },
+        })
+      );
+    } finally {
+      setIsSavingRoute(false);
+    }
+  };
+
   return (
     <div className="w-full h-[calc(100vh-64px)] flex flex-col lg:flex-row overflow-hidden bg-surface">
       {/* LEFT PANEL: 380px wide per Doc 02 section 6.2 */}
@@ -710,6 +950,15 @@ export const RoutePage: React.FC = () => {
             <RouteRiskExplanation risk={selectedRisk} />
           )}
 
+          {/* Auto Re-Route Comparison Card (P14) */}
+          {reRouteComparison && (
+            <ReRouteComparisonCard
+              comparison={reRouteComparison}
+              onApply={handleApplySaferRoute}
+              onDismiss={() => setReRouteComparison(null)}
+            />
+          )}
+
           {/* Turn-by-Turn Steps Summary Accordion */}
           {!isLoadingRoutes &&
             selectedRoute &&
@@ -774,15 +1023,20 @@ export const RoutePage: React.FC = () => {
 
         {/* Action Buttons Footer */}
         <div className="pt-4 border-t border-border space-y-2">
-          {/* Auto Re-Route Preview */}
-          <Button
-            variant="secondary"
-            className="w-full"
-            disabled={true}
-            icon={<ShieldCheck size={14} className="text-accent" />}
-          >
-            Auto Re-route (Safer) · P9 Feature
-          </Button>
+          {/* Auto Re-Route Button - Shows only if recommended route is High, Severe or Blocked */}
+          {isHighSevereOrBlocked && (
+            <Button
+              variant="primary"
+              className="w-full bg-accent hover:bg-accent-hover text-white font-semibold shadow-xs"
+              onClick={handleAutoReRoute}
+              loading={isReRouting}
+              icon={<ShieldCheck size={14} />}
+            >
+              {isReRouting
+                ? reRouteProgress || 'Finding Safer Alternative...'
+                : 'Auto Re-route (Safer) · Avoid Hazards'}
+            </Button>
+          )}
 
           <div className="grid grid-cols-2 gap-2">
             <Button
@@ -800,10 +1054,31 @@ export const RoutePage: React.FC = () => {
               {isCopied ? 'Link Copied!' : 'Share Route'}
             </Button>
 
-            <Button variant="ghost" size="sm" icon={<Bookmark size={13} />}>
-              Save Route
+            <Button
+              variant={isRouteSaved ? 'secondary' : 'ghost'}
+              size="sm"
+              onClick={handleSaveCurrentRoute}
+              loading={isSavingRoute}
+              icon={
+                isRouteSaved ? (
+                  <Check size={13} className="text-risk-low" />
+                ) : (
+                  <Bookmark size={13} />
+                )
+              }
+            >
+              {isRouteSaved ? 'Route Saved' : 'Save Route'}
             </Button>
           </div>
+
+          {/* Quick link to view all user's saved mountain routes */}
+          <button
+            type="button"
+            onClick={() => setSavedRoutesModalOpen(true)}
+            className="w-full text-center text-[11px] text-text-3 hover:text-brand font-medium transition-colors pt-1"
+          >
+            Open Saved Routes...
+          </button>
         </div>
       </div>
 
@@ -838,6 +1113,13 @@ export const RoutePage: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Saved Routes Modal */}
+      <SavedRoutesModal
+        isOpen={savedRoutesModalOpen}
+        onClose={() => setSavedRoutesModalOpen(false)}
+        onSelectRoute={handleLoadSavedRoute}
+      />
     </div>
   );
 };

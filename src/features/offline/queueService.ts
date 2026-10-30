@@ -177,3 +177,4 @@ if (typeof window !== 'undefined') {
     flushOfflineQueue().catch(() => {});
   });
 }
+

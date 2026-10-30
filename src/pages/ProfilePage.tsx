@@ -2,8 +2,29 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../features/auth/AuthContext';
 import { supabase } from '../lib/supabase';
 import { Card, Button, Input, Modal, Banner, Skeleton } from '../components/ui';
-import { ShieldCheck, Phone, User, Award, Plus, Trash2, LogOut, HeartHandshake } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { RiskBadge } from '../components/ui/RiskBadge';
+import {
+  ShieldCheck,
+  Phone,
+  User,
+  Award,
+  Plus,
+  Trash2,
+  LogOut,
+  HeartHandshake,
+  Bookmark,
+  Compass,
+  Car,
+  Footprints,
+  Calendar,
+} from 'lucide-react';
+import { Link, useNavigate } from 'react-router-dom';
+import {
+  getSavedRoutes,
+  deleteSavedRoute,
+  type SavedRoute,
+} from '../features/routing/savedRoutesService';
+import { levelFor } from '../features/risk';
 
 interface EmergencyContact {
   id: string;
@@ -14,6 +35,7 @@ interface EmergencyContact {
 }
 
 export const ProfilePage: React.FC = () => {
+  const navigate = useNavigate();
   const { user, profile, refreshProfile, signOut, loading: authLoading } = useAuth();
 
   const [displayName, setDisplayName] = useState('');
@@ -29,6 +51,11 @@ export const ProfilePage: React.FC = () => {
   const [newContactRelation, setNewContactRelation] = useState('');
   const [contactError, setContactError] = useState<string | null>(null);
   const [savingContact, setSavingContact] = useState(false);
+
+  // Saved Routes state
+  const [savedRoutes, setSavedRoutes] = useState<SavedRoute[]>([]);
+  const [loadingRoutes, setLoadingRoutes] = useState(false);
+  const [deletingRouteId, setDeletingRouteId] = useState<string | null>(null);
 
   // Sync profile fields
   useEffect(() => {
@@ -65,6 +92,39 @@ export const ProfilePage: React.FC = () => {
       fetchContacts();
     }
   }, [user, fetchContacts]);
+
+  // Fetch saved routes
+  const fetchUserSavedRoutes = useCallback(async () => {
+    if (!user) return;
+    setLoadingRoutes(true);
+    try {
+      const data = await getSavedRoutes();
+      setSavedRoutes(data);
+    } catch (err) {
+      console.warn('Error fetching saved routes:', err);
+    } finally {
+      setLoadingRoutes(false);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (user) {
+      fetchUserSavedRoutes();
+    }
+  }, [user, fetchUserSavedRoutes]);
+
+  const handleDeleteSavedRoute = async (id: string) => {
+    if (!window.confirm('Delete this saved mountain route?')) return;
+    setDeletingRouteId(id);
+    try {
+      await deleteSavedRoute(id);
+      setSavedRoutes((prev) => prev.filter((r) => r.id !== id));
+    } catch (err) {
+      alert((err as Error).message || 'Failed to delete route.');
+    } finally {
+      setDeletingRouteId(null);
+    }
+  };
 
   // Save profile changes
   const handleSaveProfile = async (e: React.FormEvent) => {
@@ -311,6 +371,105 @@ export const ProfilePage: React.FC = () => {
                 </button>
               </div>
             ))}
+          </div>
+        )}
+      </Card>
+
+      {/* Saved Routes Section */}
+      <Card className="space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h2 className="text-h2 font-semibold text-text">Saved Mountain Routes</h2>
+            <p className="text-small text-text-2">
+              Mountain routes saved to your profile for continuous disaster monitoring and live re-scoring.
+            </p>
+          </div>
+          <Button
+            variant="secondary"
+            onClick={() => navigate('/route')}
+            icon={<Plus className="w-4 h-4" />}
+          >
+            Plan New Route
+          </Button>
+        </div>
+
+        {loadingRoutes ? (
+          <div className="space-y-2">
+            <Skeleton className="h-14 w-full" />
+            <Skeleton className="h-14 w-full" />
+          </div>
+        ) : savedRoutes.length === 0 ? (
+          <div className="text-center py-8 border border-dashed border-border rounded-btn bg-surface space-y-2">
+            <Bookmark className="w-8 h-8 text-text-3 mx-auto" />
+            <p className="text-small font-medium text-text">No saved routes yet</p>
+            <p className="text-xs text-text-3 max-w-sm mx-auto">
+              Plan any route between hill towns or trails and click "Save Route" to track live risk changes.
+            </p>
+          </div>
+        ) : (
+          <div className="divide-y divide-border border border-border rounded-btn overflow-hidden">
+            {savedRoutes.map((r) => {
+              const level = levelFor(r.risk_score || 0);
+              const dateStr = new Date(r.created_at).toLocaleDateString([], {
+                month: 'short',
+                day: 'numeric',
+                year: 'numeric',
+              });
+
+              return (
+                <div
+                  key={r.id}
+                  className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white hover:bg-surface transition-colors"
+                >
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="p-1 rounded bg-surface-2 border border-border text-brand">
+                        {r.mode === 'walk' ? <Footprints size={14} /> : <Car size={14} />}
+                      </span>
+                      <span className="font-semibold text-text text-body">
+                        {r.from_label} → {r.to_label}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-3 text-xs text-text-3 font-mono">
+                      <span className="flex items-center gap-1">
+                        <Calendar size={11} /> Saved {dateStr}
+                      </span>
+                      <span>·</span>
+                      <span>Snapshot Score: {r.risk_score}/100</span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 self-end sm:self-auto">
+                    <RiskBadge
+                      level={level.toLowerCase() as import('../components/ui/RiskBadge').RiskLevel}
+                      score={r.risk_score}
+                      size="sm"
+                    />
+
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => navigate(`/route?savedRouteId=${r.id}`)}
+                      className="text-xs"
+                      icon={<Compass size={13} />}
+                    >
+                      Inspect & Re-score
+                    </Button>
+
+                    <button
+                      type="button"
+                      disabled={deletingRouteId === r.id}
+                      onClick={() => handleDeleteSavedRoute(r.id)}
+                      aria-label={`Delete saved route ${r.from_label} to ${r.to_label}`}
+                      className="p-2 text-text-3 hover:text-risk-severe rounded-btn hover:bg-surface-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         )}
       </Card>
