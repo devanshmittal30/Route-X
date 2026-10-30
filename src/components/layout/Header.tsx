@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { LifeBuoy, User, Menu, X, MessageSquareWarning } from 'lucide-react';
 import { Switch } from '../ui/Switch';
+import { useDemoStore } from '../../lib/demoStore';
 
 export interface HeaderProps {
   demoMode?: boolean;
@@ -9,13 +10,16 @@ export interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({
-  demoMode = true,
+  demoMode: propDemoMode,
   onToggleDemoMode,
 }) => {
   const location = useLocation();
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [internalDemoMode, setInternalDemoMode] = useState(demoMode);
+  const storeDemoMode = useDemoStore((state) => state.demoMode);
+  const setStoreDemoMode = useDemoStore((state) => state.setDemoMode);
+
+  const activeDemoMode = propDemoMode !== undefined ? propDemoMode : storeDemoMode;
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -29,7 +33,7 @@ export const Header: React.FC<HeaderProps> = ({
   }, []);
 
   const handleDemoToggle = (checked: boolean) => {
-    setInternalDemoMode(checked);
+    setStoreDemoMode(checked);
     onToggleDemoMode?.(checked);
   };
 
@@ -105,7 +109,7 @@ export const Header: React.FC<HeaderProps> = ({
           {/* Demo Mode Switch (desktop) */}
           <div className="hidden sm:flex items-center">
             <Switch
-              checked={internalDemoMode}
+              checked={activeDemoMode}
               onChange={handleDemoToggle}
               label="Demo"
               id="header-demo-switch"
@@ -164,7 +168,7 @@ export const Header: React.FC<HeaderProps> = ({
           <div className="py-2 border-b border-border flex items-center justify-between">
             <span className="text-small font-medium text-text-2">Demo mode</span>
             <Switch
-              checked={internalDemoMode}
+              checked={activeDemoMode}
               onChange={handleDemoToggle}
               id="mobile-demo-switch"
             />

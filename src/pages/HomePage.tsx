@@ -30,7 +30,9 @@ import { LocationPicker } from '../features/location/LocationPicker';
 import type { SelectedLocation } from '../features/location/types';
 import { fetchLocationWeather } from '../features/weather/openMeteoClient';
 import type { WeatherSummary, WeatherAlert, AreaRiskEstimate } from '../features/weather/types';
-import { deriveWeatherAlerts, calculateSinglePointAreaRisk } from '../features/weather/weatherHelpers';
+import { deriveWeatherAlerts } from '../features/weather/weatherHelpers';
+import { scoreSingleLocation } from '../features/risk/dataAdapters';
+import { useDemoStore } from '../lib/demoStore';
 import { fetchNearbyEarthquakes } from '../features/quakes/usgsClient';
 import type { EarthquakeSummary } from '../features/quakes/types';
 import { RouteXMap } from '../components/map/RouteXMap';
@@ -54,6 +56,7 @@ const DEFAULT_LOCATION: SelectedLocation = {
 export const HomePage: React.FC = () => {
   const navigate = useNavigate();
   const { profile } = useAuth();
+  const demoMode = useDemoStore((state) => state.demoMode);
 
   // Location State
   const [location, setLocation] = useState<SelectedLocation>(DEFAULT_LOCATION);
@@ -126,26 +129,44 @@ export const HomePage: React.FC = () => {
 
         setAlerts(derived);
 
-        // Calculate single-point area risk estimate
-        const risk = calculateSinglePointAreaRisk(
-          weatherData.precipitation24hMm,
-          weatherData.precipitationNext72hMm,
-          weatherData.soilMoistureM3,
-          quakeData?.events.filter((q) => q.distanceKm !== undefined && q.distanceKm <= 150).length || 0
+        // Calculate single-point area risk estimate with 4-neighbour slope sample via P7 engine
+        const singleRisk = await scoreSingleLocation(
+          loc.latitude,
+          loc.longitude,
+          {
+            accumRain72h:
+              weatherData.precipitation24hMm * 1.5 +
+              0.5 * weatherData.precipitationNext72hMm,
+            maxHourly24h: Math.max(1, weatherData.precipitation24hMm / 6),
+            soilMoisture: weatherData.soilMoistureM3,
+          },
+          demoMode
         );
-        setAreaRisk(risk);
+
+        setAreaRisk({
+          score: singleRisk.score,
+          level: singleRisk.level,
+          label: singleRisk.isBlocked
+            ? 'Blocked Obstruction'
+            : `${singleRisk.level} Hazard Risk`,
+          factors: {
+            rainScore: Math.round(singleRisk.factors.rain * 100),
+            soilScore: Math.round(singleRisk.factors.soil * 100),
+            seismicScore: Math.round(singleRisk.factors.seismic * 100),
+          },
+        });
       }
     } catch (err) {
       setWeatherError((err as Error).message || 'Failed to load weather data');
     } finally {
       setWeatherLoading(false);
     }
-  }, []);
+  }, [demoMode]);
 
-  // Initial load and on location change
+  // Initial load and on location/demoMode change
   useEffect(() => {
     loadData(location);
-  }, [location, loadData]);
+  }, [location, demoMode, loadData]);
 
   // Load Real Statistics from Database
   useEffect(() => {
@@ -410,7 +431,7 @@ export const HomePage: React.FC = () => {
               <div>
                 <div className="flex items-center gap-1.5 mb-1">
                   <RiskBadge
-                    level={areaRisk.level.toLowerCase() as 'low' | 'moderate' | 'high' | 'severe'}
+                    level={areaRisk.level.toLowerCase() as 'low' | 'moderate' | 'high' | 'severe' | 'blocked'}
                     score={areaRisk.score}
                     size="sm"
                   />
@@ -423,7 +444,7 @@ export const HomePage: React.FC = () => {
           </div>
 
           <p className="text-[10px] text-text-3 font-mono border-t border-brand/10 pt-1">
-            Single-point estimate
+            Single-point 4-neighbour estimate
           </p>
         </div>
       </div>

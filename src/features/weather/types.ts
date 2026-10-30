@@ -60,7 +60,7 @@ export interface WeatherAlert {
 
 export interface AreaRiskEstimate {
   score: number; // 0 - 100
-  level: 'Low' | 'Moderate' | 'High' | 'Severe';
+  level: 'Low' | 'Moderate' | 'High' | 'Severe' | 'Blocked';
   label: string;
   factors: {
     rainScore: number;

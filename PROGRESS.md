@@ -103,8 +103,37 @@
     - Supports URL search parameters from Home page (`?from=...&to=...&mode=...`).
   - Added Vitest unit test suite in `src/features/routing/routing.test.ts` (24/24 tests passing).
 
+- **P7 Risk Engine, Route Scoring and Explanation**:
+  - Implemented exact risk engine formulas and heuristics in `src/features/risk/config.ts` without tuning constants:
+    - Formula weights: Rain 30%, Terrain 20%, Reports 20%, History 15%, Soil 10%, Seismic 5%.
+    - Route sampling (every 2 km, min 8, max 30 points).
+    - Blocked override: verified `road_blocked` or `landslide` report within 150 m sets score = 100 and level = `Blocked`.
+    - Levels: Low (0–24), Moderate (25–49), High (50–74), Severe (75–100), Blocked (override).
+    - Route score: `round(0.6 * max(segment_scores) + 0.4 * mean(segment_scores))`.
+  - Implemented pure scoring functions in `src/features/risk/pureScoring.ts`:
+    - `sampleRoute`, `slopeFromElevations`, `rainFactor`, `soilFactor`, `terrainFactor`, `historyFactor`, `reportsFactor`, `seismicFactor`, `scoreSegment`, `scoreRoute`, `levelFor`, `explainRoute`.
+    - Strict data integrity rule enforced: When History catalogue has no records in the area, factor is 0 and output is `"No recent records in catalogue"` (never "safe").
+  - Implemented network data adapter layer in `src/features/risk/dataAdapters.ts`:
+    - `getSampleWeather`: 0.1° grid-cell deduplication, multi-location Open-Meteo call, 30m TTL dual caching.
+    - `getSampleElevationsAndSlopes`: 5 points per sample (Center + 4 orthogonal neighbours 250m away via Turf `destination`), chunked into batches of <= 100 coordinates.
+    - `getHistoricalNear`: Queries Supabase `historical_landslides` for official inventory events in the last 10 years within 5 km.
+    - `getReportsAlong`: Calls Supabase RPC `reports_along_route(line, buffer_m = 500, include_test = demoMode)`.
+    - `getQuakesNear`: Queries USGS M4.5+ events within 150 km over the last 72 hours.
+    - `scoreFullRoute`: Orchestrates layered scoring and explainability output.
+    - `scoreSingleLocation`: Single-point 4-neighbour slope risk engine for Home page.
+  - Implemented Global Demo Mode store in `src/lib/demoStore.ts` synchronized with `Header` switch, Route page, and Home page.
+  - Created hand-calculated test fixtures in `src/features/risk/__fixtures__/riskFixtures.ts` and Vitest test suite in `src/features/risk/risk.test.ts` (45/45 tests passing). Total project tests: 69/69 passing across 5 suites.
+  - Integrated full scoring into Route planning page (`src/pages/RoutePage.tsx`):
+    - Multi-stage layer loading indicator with progress steps.
+    - Risk-colored segments rendered on MapLibre GL map (`#22C55E`, `#EAB308`, `#F97316`, `#EF4444`, `#1E293B`) with white casing.
+    - Hazard markers placed along the route with popup details.
+    - `RouteCard` displays real `RiskBadge` and marks lowest score as "Recommended".
+    - `RouteRiskExplanation` accordion with 6 factor bars, detected hazards list, and mandatory disclaimer.
+  - Updated Home page (`src/pages/HomePage.tsx`) AREA RISK box to use the single-point 4-neighbour slope sample engine.
+  - Updated About page (`src/pages/AboutPage.tsx`) with full methodology, formulas, bands, weights, data sources, and verbatim limitations from Doc 03 section 15.
+
 ## In progress
-- Ready for P7 (Route risk scoring engine).
+- Ready for P8 (Hazards, community reports and verification).
 
 ## Questions for the user
 - None. Ready for next prompt.

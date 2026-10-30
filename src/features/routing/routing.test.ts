@@ -67,3 +67,4 @@ describe('OSRM Routing Client Helpers', () => {
     expect(formatManeuverInstruction(arriveStep)).toBe('Arrive at your destination');
   });
 });
+

@@ -22,11 +22,16 @@ import { geocodePlace } from '../features/routing/geocoding';
 import { fetchOsrmRoutes, formatDistance, formatDuration } from '../features/routing/osrmClient';
 import { RouteAutocomplete } from '../components/routing/RouteAutocomplete';
 import { RouteCard } from '../components/routing/RouteCard';
+import { RouteRiskExplanation } from '../components/routing/RouteRiskExplanation';
 import { RouteXMap } from '../components/map/RouteXMap';
 import type { LayerManagerAPI, MarkerHandle } from '../features/map/types';
 import { Button } from '../components/ui/Button';
 import { Badge } from '../components/ui/Badge';
 import { EmptyState } from '../components/ui/EmptyState';
+import { useDemoStore } from '../lib/demoStore';
+import { scoreFullRoute } from '../features/risk/dataAdapters';
+import { RISK_LEVEL_BANDS } from '../features/risk/config';
+import type { RouteRiskScore } from '../features/risk/types';
 
 // Default starting demo route: Shimla to Manali
 const DEFAULT_FROM_PLACE: GeocodedPlace = {
@@ -49,13 +54,20 @@ const DEFAULT_TO_PLACE: GeocodedPlace = {
 
 export const RoutePage: React.FC = () => {
   const [searchParams] = useSearchParams();
+  const demoMode = useDemoStore((state) => state.demoMode);
 
   // Search Inputs State
-  const [fromText, setFromText] = useState<string>(searchParams.get('from') || DEFAULT_FROM_PLACE.displayName);
-  const [toText, setToText] = useState<string>(searchParams.get('to') || DEFAULT_TO_PLACE.displayName);
+  const [fromText, setFromText] = useState<string>(
+    searchParams.get('from') || DEFAULT_FROM_PLACE.displayName
+  );
+  const [toText, setToText] = useState<string>(
+    searchParams.get('to') || DEFAULT_TO_PLACE.displayName
+  );
   const [fromPlace, setFromPlace] = useState<GeocodedPlace | null>(DEFAULT_FROM_PLACE);
   const [toPlace, setToPlace] = useState<GeocodedPlace | null>(DEFAULT_TO_PLACE);
-  const [mode, setMode] = useState<RouteMode>((searchParams.get('mode') as RouteMode) || 'drive');
+  const [mode, setMode] = useState<RouteMode>(
+    (searchParams.get('mode') as RouteMode) || 'drive'
+  );
 
   // Map Picking State
   const [pickMode, setPickMode] = useState<'none' | 'from' | 'to'>('none');
@@ -66,6 +78,11 @@ export const RoutePage: React.FC = () => {
   const [isLoadingRoutes, setIsLoadingRoutes] = useState<boolean>(false);
   const [routingError, setRoutingError] = useState<string | null>(null);
 
+  // Risk Engine State
+  const [routeRisks, setRouteRisks] = useState<Record<string, RouteRiskScore>>({});
+  const [isScoring, setIsScoring] = useState<boolean>(false);
+  const [scoringProgress, setScoringProgress] = useState<string | null>(null);
+
   // Steps Accordion State
   const [showSteps, setShowSteps] = useState<boolean>(false);
   const [isCopied, setIsCopied] = useState<boolean>(false);
@@ -74,6 +91,7 @@ export const RoutePage: React.FC = () => {
   const mapApiRef = useRef<LayerManagerAPI | null>(null);
   const startMarkerRef = useRef<MarkerHandle | null>(null);
   const endMarkerRef = useRef<MarkerHandle | null>(null);
+  const hazardMarkersRef = useRef<MarkerHandle[]>([]);
 
   // Fetch routes implementation
   const calculateRoute = useCallback(async () => {
@@ -81,6 +99,7 @@ export const RoutePage: React.FC = () => {
 
     setIsLoadingRoutes(true);
     setRoutingError(null);
+    setRouteRisks({});
 
     try {
       const result = await fetchOsrmRoutes(
@@ -92,7 +111,9 @@ export const RoutePage: React.FC = () => {
       setRoutes(result.routes);
       setSelectedRouteId(result.routes[0]?.id || 'route-0');
     } catch (err: unknown) {
-      setRoutingError((err as Error).message || 'Could not find a route between these points.');
+      setRoutingError(
+        (err as Error).message || 'Could not find a route between these points.'
+      );
       setRoutes([]);
     } finally {
       setIsLoadingRoutes(false);
@@ -129,34 +150,98 @@ export const RoutePage: React.FC = () => {
     initFromParams();
   }, [searchParams]);
 
-  // Auto-calculate route when places change
+  // Auto-calculate route when places or mode change
   useEffect(() => {
     if (fromPlace && toPlace) {
       calculateRoute();
     }
   }, [fromPlace, toPlace, mode, calculateRoute]);
 
-  // Update map layers and markers when routes or selection change
+  // Score all routes whenever routes load or demo mode toggles
+  useEffect(() => {
+    if (routes.length === 0) return;
+
+    let isMounted = true;
+    setIsScoring(true);
+
+    async function evaluateRoutes() {
+      const scoredMap: Record<string, RouteRiskScore> = {};
+
+      for (let i = 0; i < routes.length; i++) {
+        if (!isMounted) break;
+        const r = routes[i];
+        try {
+          const scoreResult = await scoreFullRoute(
+            r.geometry,
+            demoMode,
+            (progressStep) => {
+              if (isMounted) {
+                setScoringProgress(
+                  `[Route ${i + 1}/${routes.length}] ${progressStep}`
+                );
+              }
+            }
+          );
+          scoredMap[r.id] = scoreResult;
+        } catch {
+          // If a scoring layer has an issue, keep what succeeded
+        }
+      }
+
+      if (isMounted) {
+        setRouteRisks(scoredMap);
+        setIsScoring(false);
+        setScoringProgress(null);
+      }
+    }
+
+    evaluateRoutes();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [routes, demoMode]);
+
+  // Identify recommended route (lowest risk score, non-blocked preferred)
+  const recommendedRouteId = Object.keys(routeRisks).length > 0
+    ? routes.reduce((bestId, currentRoute) => {
+        const bestRisk = routeRisks[bestId];
+        const currRisk = routeRisks[currentRoute.id];
+        if (!bestRisk) return currentRoute.id;
+        if (!currRisk) return bestId;
+        // Non-blocked always preferred
+        if (bestRisk.isBlocked && !currRisk.isBlocked) return currentRoute.id;
+        if (!bestRisk.isBlocked && currRisk.isBlocked) return bestId;
+        return currRisk.score < bestRisk.score ? currentRoute.id : bestId;
+      }, routes[0]?.id || '')
+    : null;
+
+  // Update map layers and markers when routes, selection, or risk change
   useEffect(() => {
     const api = mapApiRef.current;
     if (!api) return;
 
-    // Remove existing route layers
+    // 1. Remove previous route layers
     api.removeLayer('route-casing');
     api.removeLayer('route-primary');
+    api.removeLayer('route-segments');
     api.removeLayer('route-alt-0');
     api.removeLayer('route-alt-1');
 
-    // Remove previous start/end markers
+    // 2. Remove previous markers
     startMarkerRef.current?.remove();
     endMarkerRef.current?.remove();
+    hazardMarkersRef.current.forEach((m) => m.remove());
+    hazardMarkersRef.current = [];
 
     if (routes.length === 0) return;
 
-    const selectedRoute = routes.find((r) => r.id === selectedRouteId) || routes[0];
+    const selectedRoute =
+      routes.find((r) => r.id === selectedRouteId) || routes[0];
     const alternativeRoutes = routes.filter((r) => r.id !== selectedRoute.id);
+    const selectedRisk = routeRisks[selectedRoute.id];
 
-    // 1. Render alternative routes in 50% dashed grey
+    // 3. Render alternative routes in 50% dashed grey
     alternativeRoutes.forEach((alt, idx) => {
       api.addGeoJSONLayer(
         `route-alt-${idx}`,
@@ -174,7 +259,7 @@ export const RoutePage: React.FC = () => {
       );
     });
 
-    // 2. Render selected route white casing (2 px wider)
+    // 4. Render selected route white casing (width 9)
     api.addGeoJSONLayer(
       'route-casing',
       selectedRoute.geometry,
@@ -189,27 +274,86 @@ export const RoutePage: React.FC = () => {
       'Route Casing'
     );
 
-    // 3. Render selected route main line in brand color (6 px)
-    api.addGeoJSONLayer(
-      'route-primary',
-      selectedRoute.geometry,
-      {
-        type: 'line',
-        paint: {
-          'line-color': '#0B3C5D',
-          'line-width': 5.5,
-          'line-opacity': 0.95,
-        },
-      },
-      selectedRoute.name
-    );
+    // 5. Render colored segments by Risk Level if scored, otherwise fallback brand blue
+    if (selectedRisk && selectedRisk.segments.length > 0) {
+      const segmentsGeoJson = {
+        type: 'FeatureCollection' as const,
+        features: selectedRisk.segments.map((seg, idx) => ({
+          type: 'Feature' as const,
+          id: idx,
+          geometry: seg.segmentGeometry,
+          properties: {
+            level: seg.level,
+            color: RISK_LEVEL_BANDS[seg.level].color,
+            score: seg.score,
+          },
+        })),
+      };
 
-    // 4. Place start and destination markers
+      api.addGeoJSONLayer(
+        'route-segments',
+        segmentsGeoJson,
+        {
+          type: 'line',
+          paint: {
+            'line-color': ['get', 'color'],
+            'line-width': 5.5,
+            'line-opacity': 0.95,
+          },
+        },
+        'Risk-Colored Segments'
+      );
+
+      // 6. Add hazard markers on map for detected hazards along this route
+      selectedRisk.hazardsOnRoute.forEach((hazard) => {
+        const hColor = hazard.severity >= 3 ? '#EF4444' : '#F97316';
+        const hIcon =
+          hazard.type === 'road_blocked'
+            ? 'ban'
+            : hazard.type === 'landslide'
+              ? 'siren'
+              : 'triangle-alert';
+
+        const markerHandle = api.addMarker({
+          lngLat: hazard.coordinates,
+          icon: hIcon,
+          color: hColor,
+          bgSoftColor: '#FEF2F2',
+          isTest: hazard.isTest,
+          size: 32,
+          popup: {
+            title: hazard.title,
+            description:
+              hazard.description ||
+              `Obstruction within ${(hazard.distanceKm * 1000).toFixed(0)}m of route`,
+            badge: hazard.isVerified ? 'Verified' : 'Pending',
+          },
+        });
+        hazardMarkersRef.current.push(markerHandle);
+      });
+    } else {
+      // Fallback single-color route line while scoring
+      api.addGeoJSONLayer(
+        'route-primary',
+        selectedRoute.geometry,
+        {
+          type: 'line',
+          paint: {
+            'line-color': '#0B3C5D',
+            'line-width': 5.5,
+            'line-opacity': 0.95,
+          },
+        },
+        selectedRoute.name
+      );
+    }
+
+    // 7. Place start and destination markers
     if (fromPlace) {
       startMarkerRef.current = api.addMarker({
         lngLat: [fromPlace.longitude, fromPlace.latitude],
         icon: 'map-pin',
-        color: '#15803D', // Low / Origin green
+        color: '#15803D',
         bgSoftColor: '#E7F5EC',
         popup: {
           title: 'Origin Point',
@@ -223,7 +367,7 @@ export const RoutePage: React.FC = () => {
       endMarkerRef.current = api.addMarker({
         lngLat: [toPlace.longitude, toPlace.latitude],
         icon: 'compass',
-        color: '#0B3C5D', // Brand destination
+        color: '#0B3C5D',
         bgSoftColor: '#E6EEF4',
         popup: {
           title: 'Destination',
@@ -233,7 +377,7 @@ export const RoutePage: React.FC = () => {
       });
     }
 
-    // 5. Fit bounds to route geometry
+    // 8. Fit bounds to route geometry
     const coords = selectedRoute.geometry.coordinates;
     if (coords.length > 0) {
       let minLng = coords[0][0];
@@ -253,10 +397,10 @@ export const RoutePage: React.FC = () => {
           [minLng, minLat],
           [maxLng, maxLat],
         ],
-        { padding: { top: 60, bottom: 60, left: 360, right: 60 } }
+        { padding: { top: 60, bottom: 60, left: 380, right: 60 } }
       );
     }
-  }, [routes, selectedRouteId, fromPlace, toPlace]);
+  }, [routes, selectedRouteId, fromPlace, toPlace, routeRisks]);
 
   // Map Click handler for picking Origin / Destination
   const handleMapClick = (coords: { lat: number; lng: number }) => {
@@ -299,7 +443,9 @@ export const RoutePage: React.FC = () => {
     setTimeout(() => setIsCopied(false), 2000);
   };
 
-  const selectedRoute = routes.find((r) => r.id === selectedRouteId) || routes[0];
+  const selectedRoute =
+    routes.find((r) => r.id === selectedRouteId) || routes[0];
+  const selectedRisk = selectedRoute ? routeRisks[selectedRoute.id] : undefined;
 
   return (
     <div className="w-full h-[calc(100vh-64px)] flex flex-col lg:flex-row overflow-hidden bg-surface">
@@ -310,7 +456,9 @@ export const RoutePage: React.FC = () => {
           <div className="flex items-center justify-between pb-3 border-b border-border">
             <div>
               <h2 className="text-h3 font-bold text-brand">Plan Route</h2>
-              <span className="text-[11px] text-text-3 font-mono">Mountain corridors</span>
+              <span className="text-[11px] text-text-3 font-mono">
+                Mountain corridors & Risk Scoring
+              </span>
             </div>
 
             <div className="flex items-center bg-surface border border-border rounded-btn p-0.5 text-xs">
@@ -318,7 +466,9 @@ export const RoutePage: React.FC = () => {
                 type="button"
                 onClick={() => setMode('drive')}
                 className={`flex items-center gap-1 px-2.5 py-1 rounded-btn font-medium transition-colors ${
-                  mode === 'drive' ? 'bg-white shadow-xs text-brand font-bold' : 'text-text-3 hover:text-text'
+                  mode === 'drive'
+                    ? 'bg-white shadow-xs text-brand font-bold'
+                    : 'text-text-3 hover:text-text'
                 }`}
               >
                 <Car size={13} /> Drive
@@ -327,7 +477,9 @@ export const RoutePage: React.FC = () => {
                 type="button"
                 onClick={() => setMode('walk')}
                 className={`flex items-center gap-1 px-2.5 py-1 rounded-btn font-medium transition-colors ${
-                  mode === 'walk' ? 'bg-white shadow-xs text-brand font-bold' : 'text-text-3 hover:text-text'
+                  mode === 'walk'
+                    ? 'bg-white shadow-xs text-brand font-bold'
+                    : 'text-text-3 hover:text-text'
                 }`}
               >
                 <Footprints size={13} /> Walk
@@ -373,15 +525,20 @@ export const RoutePage: React.FC = () => {
 
           {/* Departure Info Banner */}
           <div className="flex items-center justify-between text-[11px] text-text-3 font-mono bg-surface p-2 rounded-btn border border-border">
-            <span>Depart: <strong>Now</strong></span>
-            <span>OSRM FOSSGIS engine</span>
+            <span>
+              Depart: <strong>Now</strong>
+            </span>
+            <span>OSRM + Open-Meteo Risk Engine</span>
           </div>
 
           {/* Pick on map instructions */}
           {pickMode !== 'none' && (
             <div className="p-2.5 rounded-btn bg-brand-soft border border-brand/20 text-xs text-brand flex items-center gap-2 animate-pulse">
               <MapPin size={14} className="shrink-0 text-accent" />
-              <span>Click any position on the map to set {pickMode === 'from' ? 'Origin' : 'Destination'}.</span>
+              <span>
+                Click any position on the map to set{' '}
+                {pickMode === 'from' ? 'Origin' : 'Destination'}.
+              </span>
             </div>
           )}
 
@@ -413,12 +570,26 @@ export const RoutePage: React.FC = () => {
             </div>
           )}
 
+          {/* Scoring Progress Callout */}
+          {isScoring && (
+            <div className="p-2.5 rounded-btn bg-brand-soft/50 border border-brand/20 text-xs text-brand flex items-center gap-2 animate-pulse">
+              <Loader2 size={13} className="animate-spin text-accent shrink-0" />
+              <span className="truncate">
+                {scoringProgress || 'Evaluating environmental risk factors...'}
+              </span>
+            </div>
+          )}
+
           {/* Routes Results List */}
           {!isLoadingRoutes && routes.length > 0 && (
             <div className="space-y-2 pt-1">
               <div className="flex items-center justify-between text-xs font-semibold text-text-3 uppercase tracking-wider">
                 <span>Available Routes ({routes.length})</span>
-                {routes.length > 1 && <span className="text-[10px] lowercase text-text-3">select to compare</span>}
+                {routes.length > 1 && (
+                  <span className="text-[10px] lowercase text-text-3">
+                    select to compare
+                  </span>
+                )}
               </div>
 
               {routes.map((r) => (
@@ -428,47 +599,72 @@ export const RoutePage: React.FC = () => {
                   mode={mode}
                   isSelected={r.id === selectedRouteId}
                   onSelect={() => setSelectedRouteId(r.id)}
+                  risk={routeRisks[r.id]}
+                  isScoring={isScoring && !routeRisks[r.id]}
+                  isRecommended={
+                    recommendedRouteId === r.id && !routeRisks[r.id]?.isBlocked
+                  }
                 />
               ))}
             </div>
           )}
 
-          {/* Turn-by-Turn Steps Summary Accordion */}
-          {!isLoadingRoutes && selectedRoute && selectedRoute.legs[0]?.steps.length > 0 && (
-            <div className="border border-border rounded-card bg-surface overflow-hidden text-xs">
-              <button
-                type="button"
-                onClick={() => setShowSteps(!showSteps)}
-                className="w-full flex items-center justify-between p-3 text-left font-semibold text-text hover:bg-surface-2 transition-colors select-none"
-              >
-                <span>Route Steps ({selectedRoute.legs[0].steps.length})</span>
-                {showSteps ? <ChevronUp size={14} className="text-text-3" /> : <ChevronDown size={14} className="text-text-3" />}
-              </button>
-
-              {showSteps && (
-                <div className="max-h-60 overflow-y-auto divide-y divide-border/60 p-2 border-t border-border">
-                  {selectedRoute.legs[0].steps.map((step: RouteStep, idx: number) => (
-                    <div key={idx} className="py-2 px-1.5 flex items-start justify-between gap-2">
-                      <div className="flex items-start gap-2">
-                        <span className="w-4 h-4 rounded-full bg-surface-2 text-text-3 text-[10px] font-mono flex items-center justify-center shrink-0 mt-0.5">
-                          {idx + 1}
-                        </span>
-                        <div>
-                          <p className="text-text font-medium leading-snug">{step.instruction || step.name || 'Continue'}</p>
-                          {step.name && step.instruction !== step.name && (
-                            <p className="text-[11px] text-text-3">{step.name}</p>
-                          )}
-                        </div>
-                      </div>
-                      <span className="text-[11px] font-mono text-text-3 shrink-0">
-                        {formatDistance(step.distance)}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
+          {/* Selected Route Risk Explanation Accordion */}
+          {!isLoadingRoutes && selectedRisk && (
+            <RouteRiskExplanation risk={selectedRisk} />
           )}
+
+          {/* Turn-by-Turn Steps Summary Accordion */}
+          {!isLoadingRoutes &&
+            selectedRoute &&
+            selectedRoute.legs[0]?.steps.length > 0 && (
+              <div className="border border-border rounded-card bg-surface overflow-hidden text-xs">
+                <button
+                  type="button"
+                  onClick={() => setShowSteps(!showSteps)}
+                  className="w-full flex items-center justify-between p-3 text-left font-semibold text-text hover:bg-surface-2 transition-colors select-none"
+                >
+                  <span>Route Steps ({selectedRoute.legs[0].steps.length})</span>
+                  {showSteps ? (
+                    <ChevronUp size={14} className="text-text-3" />
+                  ) : (
+                    <ChevronDown size={14} className="text-text-3" />
+                  )}
+                </button>
+
+                {showSteps && (
+                  <div className="max-h-60 overflow-y-auto divide-y divide-border/60 p-2 border-t border-border">
+                    {selectedRoute.legs[0].steps.map(
+                      (step: RouteStep, idx: number) => (
+                        <div
+                          key={idx}
+                          className="py-2 px-1.5 flex items-start justify-between gap-2"
+                        >
+                          <div className="flex items-start gap-2">
+                            <span className="w-4 h-4 rounded-full bg-surface-2 text-text-3 text-[10px] font-mono flex items-center justify-center shrink-0 mt-0.5">
+                              {idx + 1}
+                            </span>
+                            <div>
+                              <p className="text-text font-medium leading-snug">
+                                {step.instruction || step.name || 'Continue'}
+                              </p>
+                              {step.name && step.instruction !== step.name && (
+                                <p className="text-[11px] text-text-3">
+                                  {step.name}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          <span className="text-[11px] font-mono text-text-3 shrink-0">
+                            {formatDistance(step.distance)}
+                          </span>
+                        </div>
+                      )
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
 
           {/* Empty State */}
           {!isLoadingRoutes && routes.length === 0 && !routingError && (
@@ -497,16 +693,18 @@ export const RoutePage: React.FC = () => {
               variant="ghost"
               size="sm"
               onClick={handleShare}
-              icon={isCopied ? <Check size={13} className="text-risk-low" /> : <Share2 size={13} />}
+              icon={
+                isCopied ? (
+                  <Check size={13} className="text-risk-low" />
+                ) : (
+                  <Share2 size={13} />
+                )
+              }
             >
               {isCopied ? 'Link Copied!' : 'Share Route'}
             </Button>
 
-            <Button
-              variant="ghost"
-              size="sm"
-              icon={<Bookmark size={13} />}
-            >
+            <Button variant="ghost" size="sm" icon={<Bookmark size={13} />}>
               Save Route
             </Button>
           </div>
@@ -516,7 +714,10 @@ export const RoutePage: React.FC = () => {
       {/* RIGHT MAP VIEW: Full Height */}
       <div className="flex-1 h-full relative overflow-hidden">
         <RouteXMap
-          initialCenter={[DEFAULT_FROM_PLACE.longitude, DEFAULT_FROM_PLACE.latitude]}
+          initialCenter={[
+            DEFAULT_FROM_PLACE.longitude,
+            DEFAULT_FROM_PLACE.latitude,
+          ]}
           initialZoom={9}
           onMapReady={(api) => {
             mapApiRef.current = api;
@@ -535,7 +736,8 @@ export const RoutePage: React.FC = () => {
           </Badge>
           {selectedRoute && (
             <span className="bg-white/90 backdrop-blur-sm border border-border px-2 py-0.5 rounded-chip text-xs font-mono font-bold text-text shadow-xs">
-              {formatDistance(selectedRoute.distanceMeters)} · {formatDuration(selectedRoute.durationSeconds)}
+              {formatDistance(selectedRoute.distanceMeters)} ·{' '}
+              {formatDuration(selectedRoute.durationSeconds)}
             </span>
           )}
         </div>

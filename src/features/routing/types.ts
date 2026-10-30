@@ -47,3 +47,4 @@ export interface GeocodedPlace {
   latitude: number;
   longitude: number;
 }
+

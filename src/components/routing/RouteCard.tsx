@@ -1,13 +1,18 @@
 import React from 'react';
-import { Car, Footprints, Clock, Check } from 'lucide-react';
+import { Car, Footprints, Clock, Check, ShieldCheck, Loader2 } from 'lucide-react';
 import type { RouteMode, RouteOption } from '../../features/routing/types';
+import type { RouteRiskScore } from '../../features/risk/types';
 import { formatDistance, formatDuration } from '../../features/routing/osrmClient';
+import { RiskBadge, type RiskLevel as BadgeRiskLevel } from '../ui/RiskBadge';
 
 export interface RouteCardProps {
   route: RouteOption;
   mode: RouteMode;
   isSelected: boolean;
   onSelect: () => void;
+  risk?: RouteRiskScore;
+  isScoring?: boolean;
+  isRecommended?: boolean;
   className?: string;
 }
 
@@ -16,9 +21,16 @@ export const RouteCard: React.FC<RouteCardProps> = ({
   mode,
   isSelected,
   onSelect,
+  risk,
+  isScoring = false,
+  isRecommended = false,
   className = '',
 }) => {
   const ModeIcon = mode === 'walk' ? Footprints : Car;
+
+  const badgeLevel = risk
+    ? (risk.level.toLowerCase() as BadgeRiskLevel)
+    : 'low';
 
   return (
     <div
@@ -39,7 +51,17 @@ export const RouteCard: React.FC<RouteCardProps> = ({
             <ModeIcon size={14} />
           </div>
           <div>
-            <h4 className="font-semibold text-xs sm:text-sm text-text leading-tight">{route.name}</h4>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <h4 className="font-semibold text-xs sm:text-sm text-text leading-tight">
+                {route.name}
+              </h4>
+              {isRecommended && (
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.2 text-[10px] font-semibold uppercase tracking-wider bg-risk-low-soft text-risk-low border border-risk-low/30 rounded-chip">
+                  <ShieldCheck size={10} />
+                  Recommended
+                </span>
+              )}
+            </div>
             <div className="flex items-center gap-2 mt-0.5 text-xs text-text-2 font-mono">
               <span className="font-bold text-text">{formatDistance(route.distanceMeters)}</span>
               <span>·</span>
@@ -51,15 +73,34 @@ export const RouteCard: React.FC<RouteCardProps> = ({
           </div>
         </div>
 
-        {/* Golden Rule 2: Strictly NO fake risk numbers. Neutral Risk: pending chip until P7 */}
-        <span className="px-2 py-0.5 rounded-chip text-[10px] font-mono font-medium bg-surface-2 text-text-3 border border-border">
-          Risk: pending
-        </span>
+        {/* Risk Badge display */}
+        {isScoring ? (
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-chip text-[10px] font-mono font-medium bg-surface-2 text-text-2 border border-border animate-pulse">
+            <Loader2 size={10} className="animate-spin text-brand" />
+            Scoring...
+          </span>
+        ) : risk ? (
+          <RiskBadge
+            level={badgeLevel}
+            score={risk.score}
+            showScore={!risk.isBlocked}
+            size="sm"
+          />
+        ) : (
+          <span className="px-2 py-0.5 rounded-chip text-[10px] font-mono font-medium bg-surface-2 text-text-3 border border-border">
+            Risk: pending
+          </span>
+        )}
       </div>
 
       <div className="flex items-center justify-between pt-2 border-t border-border/50 text-xs">
         <span className="text-[11px] text-text-3 font-mono">
           {route.legs[0]?.steps.length || 0} turn steps
+          {risk?.hazardsOnRoute && risk.hazardsOnRoute.length > 0 && (
+            <span className="text-risk-high ml-1 font-semibold">
+              · {risk.hazardsOnRoute.length} hazard{risk.hazardsOnRoute.length > 1 ? 's' : ''}
+            </span>
+          )}
         </span>
 
         <button
