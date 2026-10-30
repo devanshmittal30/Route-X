@@ -785,8 +785,8 @@ export const RoutePage: React.FC = () => {
 
   return (
     <div className="w-full h-[calc(100vh-64px)] flex flex-col lg:flex-row overflow-hidden bg-surface">
-      {/* LEFT PANEL: 380px wide per Doc 02 section 6.2 */}
-      <div className="w-full lg:w-[380px] shrink-0 h-full overflow-y-auto bg-white border-r border-border p-4 flex flex-col justify-between shadow-sm z-10">
+      {/* LEFT PANEL: 380px wide on desktop per Doc 02 section 6.2 */}
+      <div className="w-full lg:w-[380px] shrink-0 max-h-[48vh] lg:max-h-none lg:h-full overflow-y-auto bg-white border-b lg:border-b-0 lg:border-r border-border p-4 flex flex-col justify-between shadow-sm z-10">
         <div className="space-y-4">
           {/* Header & Mode Selector */}
           <div className="flex items-center justify-between pb-3 border-b border-border">
@@ -1088,8 +1088,8 @@ export const RoutePage: React.FC = () => {
         </div>
       </div>
 
-      {/* RIGHT MAP VIEW: Full Height */}
-      <div className="flex-1 h-full relative overflow-hidden">
+      {/* RIGHT MAP VIEW: Full Height on desktop, min 400px on mobile */}
+      <div className="flex-1 w-full h-[52vh] lg:h-full relative overflow-hidden min-h-[360px]">
         <RouteXMap
           initialCenter={[
             DEFAULT_FROM_PLACE.longitude,

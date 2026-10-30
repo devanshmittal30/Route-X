@@ -127,11 +127,26 @@ export function selectPmtilesFile(centerLng: number, centerLat: number, zoom: nu
 
 /**
  * Check if a local PMTiles file exists on the server.
+ * Validates that the response is NOT an HTML SPA fallback page (like index.html).
  */
 export async function checkPmtilesAvailability(url: string): Promise<boolean> {
   try {
     const res = await fetch(url, { method: 'HEAD' });
-    return res.ok && res.status !== 404;
+    if (!res.ok || res.status === 404) return false;
+
+    // Vite & static hosts return index.html (text/html) for missing files
+    const contentType = res.headers.get('content-type') || '';
+    if (contentType.includes('text/html')) {
+      return false;
+    }
+
+    // PMTiles archives are binary and at least several megabytes
+    const contentLength = Number(res.headers.get('content-length') || '0');
+    if (contentLength > 0 && contentLength < 10000) {
+      return false;
+    }
+
+    return true;
   } catch {
     return false;
   }

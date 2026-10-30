@@ -31,8 +31,17 @@ export const RouteXMap: React.FC<RouteXMapProps> = ({
   const layerManagerRef = useRef<LayerManager | null>(null);
   const clickMarkerRef = useRef<maplibregl.Marker | null>(null);
 
+  // Keep callback refs stable across renders
+  const onMapClickRef = useRef(onMapClick);
+  onMapClickRef.current = onMapClick;
+  const onMapReadyRef = useRef(onMapReady);
+  onMapReadyRef.current = onMapReady;
+
+  const initialCenterLng = initialCenter[0];
+  const initialCenterLat = initialCenter[1];
+
   const [activeRegion, setActiveRegion] = useState<PmtilesFileInfo>(() =>
-    selectPmtilesFile(initialCenter[0], initialCenter[1], initialZoom)
+    selectPmtilesFile(initialCenterLng, initialCenterLat, initialZoom)
   );
   const [fileMissing, setFileMissing] = useState<boolean>(false);
   const [layersList, setLayersList] = useState<MapLayerItem[]>([]);
@@ -46,122 +55,124 @@ export const RouteXMap: React.FC<RouteXMapProps> = ({
     // Register the pmtiles:// protocol with MapLibre GL once
     registerPmtilesProtocol();
 
-    const region = selectPmtilesFile(initialCenter[0], initialCenter[1], initialZoom);
+    const region = selectPmtilesFile(initialCenterLng, initialCenterLat, initialZoom);
     setActiveRegion(region);
 
     let isSubscribed = true;
 
-    async function initMap() {
-      // Check if the initial local PMTiles file exists
-      const fileExists = await checkPmtilesAvailability(region.url);
-      if (!isSubscribed) return;
+    // 1. Immediately create Map with CartoDB OSM Voyager tiles (instant 60fps render)
+    const initialStyle = customStyle || buildFallbackMapStyle();
 
-      setFileMissing(!fileExists);
+    const map = new maplibregl.Map({
+      container: containerRef.current!,
+      style: initialStyle,
+      center: [initialCenterLng, initialCenterLat],
+      zoom: initialZoom,
+      interactive,
+      attributionControl: false,
+    });
 
-      const style = customStyle || (fileExists ? buildPmtilesMapStyle(region.url) : buildFallbackMapStyle());
+    mapRef.current = map;
 
-      const map = new maplibregl.Map({
-        container: containerRef.current!,
-        style,
-        center: initialCenter,
-        zoom: initialZoom,
-        interactive,
-        attributionControl: false, // Customized below per requirements
-      });
+    // Ensure map resizes to fit container after DOM paint
+    setTimeout(() => {
+      map.resize();
+    }, 150);
 
-      mapRef.current = map;
+    // Add Attribution Control with required copyright text
+    map.addControl(
+      new maplibregl.AttributionControl({
+        compact: true,
+        customAttribution:
+          '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>, © <a href="https://carto.com/attributions" target="_blank" rel="noopener noreferrer">CARTO</a>',
+      }),
+      'bottom-right'
+    );
 
-      // Add Attribution Control with required copyright text
+    if (showControls) {
+      // Navigation (Zoom In / Out)
       map.addControl(
-        new maplibregl.AttributionControl({
-          compact: true,
-          customAttribution: '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>',
+        new maplibregl.NavigationControl({
+          showCompass: false,
         }),
-        'bottom-right'
+        'top-right'
       );
 
-      if (showControls) {
-        // Navigation (Zoom In / Out)
-        map.addControl(
-          new maplibregl.NavigationControl({
-            showCompass: false,
-          }),
-          'top-right'
-        );
+      // Geolocate Control
+      map.addControl(
+        new maplibregl.GeolocateControl({
+          positionOptions: {
+            enableHighAccuracy: true,
+          },
+          trackUserLocation: true,
+          showUserLocation: true,
+        }),
+        'top-right'
+      );
 
-        // Geolocate Control
-        map.addControl(
-          new maplibregl.GeolocateControl({
-            positionOptions: {
-              enableHighAccuracy: true,
-            },
-            trackUserLocation: true,
-            showUserLocation: true,
-          }),
-          'top-right'
-        );
-
-        // Scale bar (Metric)
-        map.addControl(
-          new maplibregl.ScaleControl({
-            maxWidth: 120,
-            unit: 'metric',
-          }),
-          'bottom-left'
-        );
-      }
-
-      // Initialize Layer Manager
-      const layerMgr = new LayerManager(map, (updatedLayers) => {
-        if (isSubscribed) setLayersList(updatedLayers);
-      });
-      layerManagerRef.current = layerMgr;
-
-      map.on('load', () => {
-        if (!isSubscribed) return;
-        setIsMapLoaded(true);
-        if (onMapReady) {
-          onMapReady(layerMgr);
-        }
-      });
-
-      // Viewport movement listener: Check active region and update state
-      map.on('moveend', async () => {
-        if (!isSubscribed) return;
-        const center = map.getCenter();
-        const zoom = map.getZoom();
-        const currentRegion = selectPmtilesFile(center.lng, center.lat, zoom);
-        setActiveRegion(currentRegion);
-
-        const exists = await checkPmtilesAvailability(currentRegion.url);
-        if (isSubscribed) {
-          setFileMissing(!exists);
-        }
-      });
-
-      // Map Click to set location (for route planning or report coordinates)
-      map.on('click', (e) => {
-        const coords = { lat: Number(e.lngLat.lat.toFixed(5)), lng: Number(e.lngLat.lng.toFixed(5)) };
-        setClickedLocation(coords);
-
-        // Update pin marker on map
-        if (clickMarkerRef.current) {
-          clickMarkerRef.current.setLngLat([coords.lng, coords.lat]);
-        } else {
-          const el = document.createElement('div');
-          el.className = 'w-4 h-4 rounded-full bg-accent border-2 border-white shadow-md animate-pulse';
-          clickMarkerRef.current = new maplibregl.Marker({ element: el })
-            .setLngLat([coords.lng, coords.lat])
-            .addTo(map);
-        }
-
-        if (onMapClick) {
-          onMapClick(coords);
-        }
-      });
+      // Scale bar (Metric)
+      map.addControl(
+        new maplibregl.ScaleControl({
+          maxWidth: 120,
+          unit: 'metric',
+        }),
+        'bottom-left'
+      );
     }
 
-    initMap();
+    // Initialize Layer Manager
+    const layerMgr = new LayerManager(map, (updatedLayers) => {
+      if (isSubscribed) setLayersList(updatedLayers);
+    });
+    layerManagerRef.current = layerMgr;
+
+    map.on('load', () => {
+      if (!isSubscribed) return;
+      setIsMapLoaded(true);
+      onMapReadyRef.current?.(layerMgr);
+    });
+
+    // Check if local PMTiles exists; if so, upgrade style to local vector tiles
+    checkPmtilesAvailability(region.url).then((exists) => {
+      if (!isSubscribed) return;
+      setFileMissing(!exists);
+      if (exists && !customStyle) {
+        map.setStyle(buildPmtilesMapStyle(region.url));
+      }
+    });
+
+    // Viewport movement listener: Check active region and update state
+    map.on('moveend', async () => {
+      if (!isSubscribed) return;
+      const center = map.getCenter();
+      const zoom = map.getZoom();
+      const currentRegion = selectPmtilesFile(center.lng, center.lat, zoom);
+      setActiveRegion(currentRegion);
+
+      const exists = await checkPmtilesAvailability(currentRegion.url);
+      if (isSubscribed) {
+        setFileMissing(!exists);
+      }
+    });
+
+    // Map Click to set location (for route planning or report coordinates)
+    map.on('click', (e) => {
+      const coords = { lat: Number(e.lngLat.lat.toFixed(5)), lng: Number(e.lngLat.lng.toFixed(5)) };
+      setClickedLocation(coords);
+
+      // Update pin marker on map
+      if (clickMarkerRef.current) {
+        clickMarkerRef.current.setLngLat([coords.lng, coords.lat]);
+      } else {
+        const el = document.createElement('div');
+        el.className = 'w-4 h-4 rounded-full bg-accent border-2 border-white shadow-md animate-pulse';
+        clickMarkerRef.current = new maplibregl.Marker({ element: el })
+          .setLngLat([coords.lng, coords.lat])
+          .addTo(map);
+      }
+
+      onMapClickRef.current?.(coords);
+    });
 
     return () => {
       isSubscribed = false;
@@ -174,7 +185,7 @@ export const RouteXMap: React.FC<RouteXMapProps> = ({
         mapRef.current = null;
       }
     };
-  }, [initialCenter, initialZoom, interactive, showControls, customStyle, onMapClick, onMapReady]);
+  }, [initialCenterLng, initialCenterLat, initialZoom, interactive, showControls, customStyle]);
 
   const handleToggleLayer = useCallback((layerId: string, visible: boolean) => {
     layerManagerRef.current?.toggleLayer(layerId, visible);
