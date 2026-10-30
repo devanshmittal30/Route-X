@@ -147,3 +147,4 @@ main().catch((e) => {
   console.error('Fatal setup error:', e);
   process.exit(1);
 });
+
