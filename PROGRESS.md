@@ -52,8 +52,25 @@
   - Automatically provisioned the public storage bucket `report-photos` on Supabase with 3 MB size limit and image MIME restrictions.
   - Successfully applied and verified live database schema, PostGIS spatial extension, RPC functions (`reports_near`, `reports_along_route`), and seed data (8 test reports, 4 partners, 4 offers).
 
+- **P4 Map Foundation with PMTiles & MapLibre GL**:
+  - Implemented `RouteXMap` in `src/components/map/RouteXMap.tsx` with MapLibre GL JS and Protomaps vector style (`@protomaps/basemaps` light flavour).
+  - Registered `pmtiles://` protocol singleton using `pmtiles.Protocol`.
+  - Created custom PMTiles Source abstraction in `src/features/map/pmtilesSources.ts` with two implementations:
+    - `HttpPmtilesSource`: Chunked range request fetcher with ETag and Cache-Control headers.
+    - `BlobPmtilesSource`: In-memory and IndexedDB `Blob.slice()` byte reader ready for offline storage (P13).
+  - Implemented viewport-based regional file selection in `pmtilesManager.ts`:
+    - `himalaya.pmtiles` for bounding box `[74, 28.5, 81, 37]` (Shimla, Manali, UK, J&K).
+    - `northeast.pmtiles` for bounding box `[87.5, 21.5, 97.5, 29.5]` (Guwahati, Shillong, Tawang).
+    - `india-overview.pmtiles` for national zoom (`zoom < 7`) and fallback outside regional bboxes.
+    - Graceful missing file detection with friendly user-facing alert without canvas crash.
+  - Implemented `LayerManager` API in `src/features/map/LayerManager.ts`: `addGeoJSONLayer`, `removeLayer`, `toggleLayer`, `fitToBounds`, `flyTo`, `addMarker` (with custom Lucide SVG pins and risk tokens), and `clearMarkers`.
+  - Built map controls: Zoom navigation, Geolocate, Metric scale bar, OpenStreetMap attribution, collapsible `LayerPanel`, and `MapLegend`.
+  - Added click-to-pin coordinate selection with live HUD coordinates badge.
+  - Built interactive test suite on `/map` page (`src/pages/MapPage.tsx`) with quick viewport jump buttons and sample risk marker toggling.
+  - Added comprehensive unit tests in `src/features/map/pmtiles.test.ts` (7/7 tests passing).
+
 ## In progress
-- Ready for P4 (Map foundation with PMTiles).
+- Ready for P5 (Live Hazard Reports layer and real-time community verification).
 
 ## Questions for the user
 - None. Ready for next prompt.
