@@ -45,3 +45,4 @@ export async function searchPlaces(query: string): Promise<SelectedLocation[]> {
     return [];
   }
 }
+

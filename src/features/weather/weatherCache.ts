@@ -92,3 +92,4 @@ export async function setCachedWeather(
     // Graceful fallback for offline or restricted environment
   }
 }
+

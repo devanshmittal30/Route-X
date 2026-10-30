@@ -1,17 +1,545 @@
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import {
+  Car,
+  Footprints,
+  ArrowRightLeft,
+  MapPin,
+  Compass,
+  AlertTriangle,
+  RotateCcw,
+  Share2,
+  Bookmark,
+  ChevronDown,
+  ChevronUp,
+  ShieldCheck,
+  Check,
+  Loader2,
+} from 'lucide-react';
 
+import type { RouteMode, RouteOption, GeocodedPlace, RouteStep } from '../features/routing/types';
+import { geocodePlace } from '../features/routing/geocoding';
+import { fetchOsrmRoutes, formatDistance, formatDuration } from '../features/routing/osrmClient';
+import { RouteAutocomplete } from '../components/routing/RouteAutocomplete';
+import { RouteCard } from '../components/routing/RouteCard';
+import { RouteXMap } from '../components/map/RouteXMap';
+import type { LayerManagerAPI, MarkerHandle } from '../features/map/types';
+import { Button } from '../components/ui/Button';
+import { Badge } from '../components/ui/Badge';
 import { EmptyState } from '../components/ui/EmptyState';
-import { Navigation } from 'lucide-react';
+
+// Default starting demo route: Shimla to Manali
+const DEFAULT_FROM_PLACE: GeocodedPlace = {
+  name: 'Shimla',
+  displayName: 'Shimla, Himachal Pradesh',
+  admin1: 'Himachal Pradesh',
+  country: 'India',
+  latitude: 31.1048,
+  longitude: 77.1734,
+};
+
+const DEFAULT_TO_PLACE: GeocodedPlace = {
+  name: 'Manali',
+  displayName: 'Manali, Himachal Pradesh',
+  admin1: 'Himachal Pradesh',
+  country: 'India',
+  latitude: 32.2432,
+  longitude: 77.1892,
+};
 
 export const RoutePage: React.FC = () => {
+  const [searchParams] = useSearchParams();
+
+  // Search Inputs State
+  const [fromText, setFromText] = useState<string>(searchParams.get('from') || DEFAULT_FROM_PLACE.displayName);
+  const [toText, setToText] = useState<string>(searchParams.get('to') || DEFAULT_TO_PLACE.displayName);
+  const [fromPlace, setFromPlace] = useState<GeocodedPlace | null>(DEFAULT_FROM_PLACE);
+  const [toPlace, setToPlace] = useState<GeocodedPlace | null>(DEFAULT_TO_PLACE);
+  const [mode, setMode] = useState<RouteMode>((searchParams.get('mode') as RouteMode) || 'drive');
+
+  // Map Picking State
+  const [pickMode, setPickMode] = useState<'none' | 'from' | 'to'>('none');
+
+  // Routing Results State
+  const [routes, setRoutes] = useState<RouteOption[]>([]);
+  const [selectedRouteId, setSelectedRouteId] = useState<string>('route-0');
+  const [isLoadingRoutes, setIsLoadingRoutes] = useState<boolean>(false);
+  const [routingError, setRoutingError] = useState<string | null>(null);
+
+  // Steps Accordion State
+  const [showSteps, setShowSteps] = useState<boolean>(false);
+  const [isCopied, setIsCopied] = useState<boolean>(false);
+
+  // Map & Markers Ref
+  const mapApiRef = useRef<LayerManagerAPI | null>(null);
+  const startMarkerRef = useRef<MarkerHandle | null>(null);
+  const endMarkerRef = useRef<MarkerHandle | null>(null);
+
+  // Fetch routes implementation
+  const calculateRoute = useCallback(async () => {
+    if (!fromPlace || !toPlace) return;
+
+    setIsLoadingRoutes(true);
+    setRoutingError(null);
+
+    try {
+      const result = await fetchOsrmRoutes(
+        [fromPlace.longitude, fromPlace.latitude],
+        [toPlace.longitude, toPlace.latitude],
+        mode
+      );
+
+      setRoutes(result.routes);
+      setSelectedRouteId(result.routes[0]?.id || 'route-0');
+    } catch (err: unknown) {
+      setRoutingError((err as Error).message || 'Could not find a route between these points.');
+      setRoutes([]);
+    } finally {
+      setIsLoadingRoutes(false);
+    }
+  }, [fromPlace, toPlace, mode]);
+
+  // Handle URL query parameters from Home search card on initial load
+  useEffect(() => {
+    const urlFrom = searchParams.get('from');
+    const urlTo = searchParams.get('to');
+    const urlMode = searchParams.get('mode') as RouteMode;
+
+    if (urlMode) setMode(urlMode);
+
+    async function initFromParams() {
+      if (urlFrom && urlTo) {
+        setIsLoadingRoutes(true);
+        const [fromRes, toRes] = await Promise.all([
+          geocodePlace(urlFrom),
+          geocodePlace(urlTo),
+        ]);
+
+        if (fromRes.length > 0) {
+          setFromPlace(fromRes[0]);
+          setFromText(fromRes[0].displayName);
+        }
+        if (toRes.length > 0) {
+          setToPlace(toRes[0]);
+          setToText(toRes[0].displayName);
+        }
+      }
+    }
+
+    initFromParams();
+  }, [searchParams]);
+
+  // Auto-calculate route when places change
+  useEffect(() => {
+    if (fromPlace && toPlace) {
+      calculateRoute();
+    }
+  }, [fromPlace, toPlace, mode, calculateRoute]);
+
+  // Update map layers and markers when routes or selection change
+  useEffect(() => {
+    const api = mapApiRef.current;
+    if (!api) return;
+
+    // Remove existing route layers
+    api.removeLayer('route-casing');
+    api.removeLayer('route-primary');
+    api.removeLayer('route-alt-0');
+    api.removeLayer('route-alt-1');
+
+    // Remove previous start/end markers
+    startMarkerRef.current?.remove();
+    endMarkerRef.current?.remove();
+
+    if (routes.length === 0) return;
+
+    const selectedRoute = routes.find((r) => r.id === selectedRouteId) || routes[0];
+    const alternativeRoutes = routes.filter((r) => r.id !== selectedRoute.id);
+
+    // 1. Render alternative routes in 50% dashed grey
+    alternativeRoutes.forEach((alt, idx) => {
+      api.addGeoJSONLayer(
+        `route-alt-${idx}`,
+        alt.geometry,
+        {
+          type: 'line',
+          paint: {
+            'line-color': '#94A3B8',
+            'line-width': 4,
+            'line-dasharray': [2, 2],
+            'line-opacity': 0.65,
+          },
+        },
+        alt.name
+      );
+    });
+
+    // 2. Render selected route white casing (2 px wider)
+    api.addGeoJSONLayer(
+      'route-casing',
+      selectedRoute.geometry,
+      {
+        type: 'line',
+        paint: {
+          'line-color': '#FFFFFF',
+          'line-width': 9,
+          'line-opacity': 1,
+        },
+      },
+      'Route Casing'
+    );
+
+    // 3. Render selected route main line in brand color (6 px)
+    api.addGeoJSONLayer(
+      'route-primary',
+      selectedRoute.geometry,
+      {
+        type: 'line',
+        paint: {
+          'line-color': '#0B3C5D',
+          'line-width': 5.5,
+          'line-opacity': 0.95,
+        },
+      },
+      selectedRoute.name
+    );
+
+    // 4. Place start and destination markers
+    if (fromPlace) {
+      startMarkerRef.current = api.addMarker({
+        lngLat: [fromPlace.longitude, fromPlace.latitude],
+        icon: 'map-pin',
+        color: '#15803D', // Low / Origin green
+        bgSoftColor: '#E7F5EC',
+        popup: {
+          title: 'Origin Point',
+          description: fromPlace.displayName,
+          badge: 'Start',
+        },
+      });
+    }
+
+    if (toPlace) {
+      endMarkerRef.current = api.addMarker({
+        lngLat: [toPlace.longitude, toPlace.latitude],
+        icon: 'compass',
+        color: '#0B3C5D', // Brand destination
+        bgSoftColor: '#E6EEF4',
+        popup: {
+          title: 'Destination',
+          description: toPlace.displayName,
+          badge: 'Finish',
+        },
+      });
+    }
+
+    // 5. Fit bounds to route geometry
+    const coords = selectedRoute.geometry.coordinates;
+    if (coords.length > 0) {
+      let minLng = coords[0][0];
+      let maxLng = coords[0][0];
+      let minLat = coords[0][1];
+      let maxLat = coords[0][1];
+
+      coords.forEach(([lng, lat]) => {
+        if (lng < minLng) minLng = lng;
+        if (lng > maxLng) maxLng = lng;
+        if (lat < minLat) minLat = lat;
+        if (lat > maxLat) maxLat = lat;
+      });
+
+      api.fitToBounds(
+        [
+          [minLng, minLat],
+          [maxLng, maxLat],
+        ],
+        { padding: { top: 60, bottom: 60, left: 360, right: 60 } }
+      );
+    }
+  }, [routes, selectedRouteId, fromPlace, toPlace]);
+
+  // Map Click handler for picking Origin / Destination
+  const handleMapClick = (coords: { lat: number; lng: number }) => {
+    if (pickMode === 'none') return;
+
+    const clickedPlace: GeocodedPlace = {
+      name: `Point (${coords.lat.toFixed(3)}, ${coords.lng.toFixed(3)})`,
+      displayName: `Map Point (${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)})`,
+      latitude: coords.lat,
+      longitude: coords.lng,
+    };
+
+    if (pickMode === 'from') {
+      setFromPlace(clickedPlace);
+      setFromText(clickedPlace.displayName);
+      setPickMode('none');
+    } else if (pickMode === 'to') {
+      setToPlace(clickedPlace);
+      setToText(clickedPlace.displayName);
+      setPickMode('none');
+    }
+  };
+
+  const handleSwap = () => {
+    const tempText = fromText;
+    const tempPlace = fromPlace;
+    setFromText(toText);
+    setFromPlace(toPlace);
+    setToText(tempText);
+    setToPlace(tempPlace);
+  };
+
+  const handleShare = () => {
+    const url = new URL(window.location.href);
+    url.searchParams.set('from', fromText);
+    url.searchParams.set('to', toText);
+    url.searchParams.set('mode', mode);
+    navigator.clipboard.writeText(url.toString());
+    setIsCopied(true);
+    setTimeout(() => setIsCopied(false), 2000);
+  };
+
+  const selectedRoute = routes.find((r) => r.id === selectedRouteId) || routes[0];
+
   return (
-    <div className="max-w-[1200px] w-full mx-auto px-4 py-8">
-      <h1 className="text-h1 font-bold text-brand mb-2">Plan Route</h1>
-      <p className="text-body text-text-2 mb-6">Drive and walking routes with segment-level risk assessment.</p>
-      <EmptyState
-        icon={Navigation}
-        title="Coming Soon"
-        description="Route planning panel and route risk scoring will be implemented in Phase 4."
-      />
+    <div className="w-full h-[calc(100vh-64px)] flex flex-col lg:flex-row overflow-hidden bg-surface">
+      {/* LEFT PANEL: 380px wide per Doc 02 section 6.2 */}
+      <div className="w-full lg:w-[380px] shrink-0 h-full overflow-y-auto bg-white border-r border-border p-4 flex flex-col justify-between shadow-sm z-10">
+        <div className="space-y-4">
+          {/* Header & Mode Selector */}
+          <div className="flex items-center justify-between pb-3 border-b border-border">
+            <div>
+              <h2 className="text-h3 font-bold text-brand">Plan Route</h2>
+              <span className="text-[11px] text-text-3 font-mono">Mountain corridors</span>
+            </div>
+
+            <div className="flex items-center bg-surface border border-border rounded-btn p-0.5 text-xs">
+              <button
+                type="button"
+                onClick={() => setMode('drive')}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-btn font-medium transition-colors ${
+                  mode === 'drive' ? 'bg-white shadow-xs text-brand font-bold' : 'text-text-3 hover:text-text'
+                }`}
+              >
+                <Car size={13} /> Drive
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode('walk')}
+                className={`flex items-center gap-1 px-2.5 py-1 rounded-btn font-medium transition-colors ${
+                  mode === 'walk' ? 'bg-white shadow-xs text-brand font-bold' : 'text-text-3 hover:text-text'
+                }`}
+              >
+                <Footprints size={13} /> Walk
+              </button>
+            </div>
+          </div>
+
+          {/* Autocomplete Origin & Destination */}
+          <div className="space-y-2.5">
+            <RouteAutocomplete
+              label="Origin (From)"
+              placeholder="Search start point (e.g. Shimla)..."
+              value={fromText}
+              onChange={setFromText}
+              onSelectPlace={(p) => setFromPlace(p)}
+              icon={<MapPin size={13} className="text-risk-low" />}
+              onPickOnMap={() => setPickMode(pickMode === 'from' ? 'none' : 'from')}
+              isPickingOnMap={pickMode === 'from'}
+            />
+
+            <div className="flex justify-center -my-1">
+              <button
+                type="button"
+                onClick={handleSwap}
+                aria-label="Swap origin and destination"
+                className="p-1 rounded-full bg-surface-2 border border-border text-text-3 hover:text-brand transition-colors"
+              >
+                <ArrowRightLeft size={13} />
+              </button>
+            </div>
+
+            <RouteAutocomplete
+              label="Destination (To)"
+              placeholder="Search destination (e.g. Manali)..."
+              value={toText}
+              onChange={setToText}
+              onSelectPlace={(p) => setToPlace(p)}
+              icon={<Compass size={13} className="text-brand" />}
+              onPickOnMap={() => setPickMode(pickMode === 'to' ? 'none' : 'to')}
+              isPickingOnMap={pickMode === 'to'}
+            />
+          </div>
+
+          {/* Departure Info Banner */}
+          <div className="flex items-center justify-between text-[11px] text-text-3 font-mono bg-surface p-2 rounded-btn border border-border">
+            <span>Depart: <strong>Now</strong></span>
+            <span>OSRM FOSSGIS engine</span>
+          </div>
+
+          {/* Pick on map instructions */}
+          {pickMode !== 'none' && (
+            <div className="p-2.5 rounded-btn bg-brand-soft border border-brand/20 text-xs text-brand flex items-center gap-2 animate-pulse">
+              <MapPin size={14} className="shrink-0 text-accent" />
+              <span>Click any position on the map to set {pickMode === 'from' ? 'Origin' : 'Destination'}.</span>
+            </div>
+          )}
+
+          {/* Error Message Display */}
+          {routingError && (
+            <div className="p-3 rounded-btn bg-risk-high-soft border border-risk-high text-xs text-risk-high flex items-start gap-2">
+              <AlertTriangle size={15} className="shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold">Routing Unavailable</p>
+                <p className="text-text mt-0.5">{routingError}</p>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={calculateRoute}
+                  className="mt-2 text-[11px]"
+                  icon={<RotateCcw size={11} />}
+                >
+                  Retry calculation
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Loading Indicator */}
+          {isLoadingRoutes && (
+            <div className="py-8 flex flex-col items-center justify-center text-text-3 gap-2">
+              <Loader2 size={24} className="animate-spin text-accent" />
+              <span className="text-xs font-medium">Calculating mountain route...</span>
+            </div>
+          )}
+
+          {/* Routes Results List */}
+          {!isLoadingRoutes && routes.length > 0 && (
+            <div className="space-y-2 pt-1">
+              <div className="flex items-center justify-between text-xs font-semibold text-text-3 uppercase tracking-wider">
+                <span>Available Routes ({routes.length})</span>
+                {routes.length > 1 && <span className="text-[10px] lowercase text-text-3">select to compare</span>}
+              </div>
+
+              {routes.map((r) => (
+                <RouteCard
+                  key={r.id}
+                  route={r}
+                  mode={mode}
+                  isSelected={r.id === selectedRouteId}
+                  onSelect={() => setSelectedRouteId(r.id)}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Turn-by-Turn Steps Summary Accordion */}
+          {!isLoadingRoutes && selectedRoute && selectedRoute.legs[0]?.steps.length > 0 && (
+            <div className="border border-border rounded-card bg-surface overflow-hidden text-xs">
+              <button
+                type="button"
+                onClick={() => setShowSteps(!showSteps)}
+                className="w-full flex items-center justify-between p-3 text-left font-semibold text-text hover:bg-surface-2 transition-colors select-none"
+              >
+                <span>Route Steps ({selectedRoute.legs[0].steps.length})</span>
+                {showSteps ? <ChevronUp size={14} className="text-text-3" /> : <ChevronDown size={14} className="text-text-3" />}
+              </button>
+
+              {showSteps && (
+                <div className="max-h-60 overflow-y-auto divide-y divide-border/60 p-2 border-t border-border">
+                  {selectedRoute.legs[0].steps.map((step: RouteStep, idx: number) => (
+                    <div key={idx} className="py-2 px-1.5 flex items-start justify-between gap-2">
+                      <div className="flex items-start gap-2">
+                        <span className="w-4 h-4 rounded-full bg-surface-2 text-text-3 text-[10px] font-mono flex items-center justify-center shrink-0 mt-0.5">
+                          {idx + 1}
+                        </span>
+                        <div>
+                          <p className="text-text font-medium leading-snug">{step.instruction || step.name || 'Continue'}</p>
+                          {step.name && step.instruction !== step.name && (
+                            <p className="text-[11px] text-text-3">{step.name}</p>
+                          )}
+                        </div>
+                      </div>
+                      <span className="text-[11px] font-mono text-text-3 shrink-0">
+                        {formatDistance(step.distance)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Empty State */}
+          {!isLoadingRoutes && routes.length === 0 && !routingError && (
+            <EmptyState
+              icon={Compass}
+              title="No Route Selected"
+              description="Enter starting point and destination above or click on the map to calculate routes."
+            />
+          )}
+        </div>
+
+        {/* Action Buttons Footer */}
+        <div className="pt-4 border-t border-border space-y-2">
+          {/* Auto Re-Route Preview */}
+          <Button
+            variant="secondary"
+            className="w-full"
+            disabled={true}
+            icon={<ShieldCheck size={14} className="text-accent" />}
+          >
+            Auto Re-route (Safer) · P9 Feature
+          </Button>
+
+          <div className="grid grid-cols-2 gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleShare}
+              icon={isCopied ? <Check size={13} className="text-risk-low" /> : <Share2 size={13} />}
+            >
+              {isCopied ? 'Link Copied!' : 'Share Route'}
+            </Button>
+
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={<Bookmark size={13} />}
+            >
+              Save Route
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* RIGHT MAP VIEW: Full Height */}
+      <div className="flex-1 h-full relative overflow-hidden">
+        <RouteXMap
+          initialCenter={[DEFAULT_FROM_PLACE.longitude, DEFAULT_FROM_PLACE.latitude]}
+          initialZoom={9}
+          onMapReady={(api) => {
+            mapApiRef.current = api;
+          }}
+          onMapClick={handleMapClick}
+          showControls={true}
+          showLayerPanel={false}
+          showLegend={true}
+          className="w-full h-full rounded-none border-none"
+        />
+
+        {/* Map Header Status Overlay */}
+        <div className="absolute top-3 left-3 z-10 hidden sm:flex items-center gap-2">
+          <Badge variant="brand">
+            {mode === 'drive' ? 'Driving Route' : 'Walking Trail'}
+          </Badge>
+          {selectedRoute && (
+            <span className="bg-white/90 backdrop-blur-sm border border-border px-2 py-0.5 rounded-chip text-xs font-mono font-bold text-text shadow-xs">
+              {formatDistance(selectedRoute.distanceMeters)} · {formatDuration(selectedRoute.durationSeconds)}
+            </span>
+          )}
+        </div>
+      </div>
     </div>
   );
 };

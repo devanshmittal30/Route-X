@@ -18,3 +18,4 @@ export interface GeocodingResultItem {
   admin1?: string;
   admin2?: string;
 }
+

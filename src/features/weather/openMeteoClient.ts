@@ -170,3 +170,4 @@ export async function fetchMultiLocationWeather(
   const single = openMeteoResponseSchema.parse(json);
   return [parseWeatherSummary(single)];
 }
+

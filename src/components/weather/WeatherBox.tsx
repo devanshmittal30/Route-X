@@ -141,3 +141,4 @@ export const WeatherBox: React.FC<WeatherBoxProps> = ({
     </div>
   );
 };
+

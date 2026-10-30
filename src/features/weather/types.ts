@@ -68,3 +68,4 @@ export interface AreaRiskEstimate {
     seismicScore: number;
   };
 }
+
