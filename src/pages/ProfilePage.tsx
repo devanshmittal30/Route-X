@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../features/auth/AuthContext';
 import { supabase } from '../lib/supabase';
-import { Card, Button, Input, Modal, Banner, Skeleton } from '../components/ui';
+import { Card, Button, Input, Modal, Banner, Skeleton, Badge } from '../components/ui';
 import { RiskBadge } from '../components/ui/RiskBadge';
 import {
   ShieldCheck,
@@ -17,6 +17,9 @@ import {
   Car,
   Footprints,
   Calendar,
+  Tag,
+  FileText,
+  ThumbsUp,
 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import {
@@ -56,6 +59,33 @@ export const ProfilePage: React.FC = () => {
   const [savedRoutes, setSavedRoutes] = useState<SavedRoute[]>([]);
   const [loadingRoutes, setLoadingRoutes] = useState(false);
   const [deletingRouteId, setDeletingRouteId] = useState<string | null>(null);
+
+  // My Reports & My Coupons state (FR-A2)
+  interface MyReportItem {
+    id: string;
+    type: string;
+    severity: number;
+    description: string | null;
+    status: string;
+    up_count: number;
+    down_count: number;
+    created_at: string;
+  }
+  const [myReports, setMyReports] = useState<MyReportItem[]>([]);
+  const [loadingReports, setLoadingReports] = useState(false);
+
+  interface MyCouponItem {
+    id: string;
+    code: string;
+    status: string;
+    created_at: string;
+    offers?: {
+      title: string;
+      points_cost: number;
+    };
+  }
+  const [myCoupons, setMyCoupons] = useState<MyCouponItem[]>([]);
+  const [loadingCoupons, setLoadingCoupons] = useState(false);
 
   // Sync profile fields
   useEffect(() => {
@@ -125,6 +155,49 @@ export const ProfilePage: React.FC = () => {
       setDeletingRouteId(null);
     }
   };
+
+  // Fetch my hazard reports (FR-A2)
+  const fetchMyReports = useCallback(async () => {
+    if (!user) return;
+    setLoadingReports(true);
+    try {
+      const { data } = await supabase
+        .from('hazard_reports')
+        .select('id, type, severity, description, status, up_count, down_count, created_at')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+      if (data) setMyReports(data);
+    } catch (err) {
+      console.warn('Error fetching user reports:', err);
+    } finally {
+      setLoadingReports(false);
+    }
+  }, [user]);
+
+  // Fetch my redeemed coupons (FR-A2)
+  const fetchMyCoupons = useCallback(async () => {
+    if (!user) return;
+    setLoadingCoupons(true);
+    try {
+      const { data } = await supabase
+        .from('redemptions')
+        .select('id, code, status, created_at, offers(title, points_cost)')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false });
+      if (data) setMyCoupons(data as unknown as MyCouponItem[]);
+    } catch (err) {
+      console.warn('Error fetching user coupons:', err);
+    } finally {
+      setLoadingCoupons(false);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (user) {
+      fetchMyReports();
+      fetchMyCoupons();
+    }
+  }, [user, fetchMyReports, fetchMyCoupons]);
 
   // Save profile changes
   const handleSaveProfile = async (e: React.FormEvent) => {
@@ -470,6 +543,141 @@ export const ProfilePage: React.FC = () => {
                 </div>
               );
             })}
+          </div>
+        )}
+      </Card>
+
+      {/* My Submitted Hazard Reports (FR-A2) */}
+      <Card className="space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h2 className="text-h2 font-semibold text-text">My Hazard Reports</h2>
+            <p className="text-small text-text-2">
+              Mountain hazard obstacles submitted to the RouteX community with live verification counts.
+            </p>
+          </div>
+          <Button
+            variant="secondary"
+            onClick={() => navigate('/report')}
+            icon={<Plus className="w-4 h-4" />}
+          >
+            Report Hazard
+          </Button>
+        </div>
+
+        {loadingReports ? (
+          <div className="space-y-2">
+            <Skeleton className="h-14 w-full" />
+            <Skeleton className="h-14 w-full" />
+          </div>
+        ) : myReports.length === 0 ? (
+          <div className="text-center py-8 border border-dashed border-border rounded-btn bg-surface space-y-2">
+            <FileText className="w-8 h-8 text-text-3 mx-auto" />
+            <p className="text-small font-medium text-text">No reports submitted yet</p>
+            <p className="text-xs text-text-3 max-w-sm mx-auto">
+              Spot a landslide or blocked pass? Submit a report to warn fellow travelers and earn community points.
+            </p>
+          </div>
+        ) : (
+          <div className="divide-y divide-border border border-border rounded-btn overflow-hidden">
+            {myReports.map((r) => (
+              <div
+                key={r.id}
+                className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white hover:bg-surface transition-colors"
+              >
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="capitalize font-semibold text-text text-body">
+                      {r.type.replace('_', ' ')} (Severity {r.severity}/3)
+                    </span>
+                    <Badge variant={r.status === 'verified' ? 'verified' : 'neutral'}>
+                      {r.status}
+                    </Badge>
+                  </div>
+
+                  <p className="text-xs text-text-2 line-clamp-1">
+                    {r.description || 'No description provided.'}
+                  </p>
+
+                  <div className="flex items-center gap-3 text-xs text-text-3 font-mono">
+                    <span>{new Date(r.created_at).toLocaleDateString()}</span>
+                    <span>·</span>
+                    <span className="flex items-center gap-1 text-emerald-700">
+                      <ThumbsUp size={11} /> {r.up_count} confirmations
+                    </span>
+                  </div>
+                </div>
+
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => navigate('/reports')}
+                  className="text-xs self-end sm:self-auto"
+                >
+                  View in Feed
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      {/* My Redeemed Coupons (FR-A2) */}
+      <Card className="space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h2 className="text-h2 font-semibold text-text">My Redeemed Coupons</h2>
+            <p className="text-small text-text-2">
+              Partner discount coupons redeemed with community karma points.
+            </p>
+          </div>
+          <Button
+            variant="secondary"
+            onClick={() => navigate('/rewards')}
+            icon={<Award className="w-4 h-4" />}
+          >
+            Explore Rewards
+          </Button>
+        </div>
+
+        {loadingCoupons ? (
+          <div className="space-y-2">
+            <Skeleton className="h-14 w-full" />
+          </div>
+        ) : myCoupons.length === 0 ? (
+          <div className="text-center py-8 border border-dashed border-border rounded-btn bg-surface space-y-2">
+            <Tag className="w-8 h-8 text-text-3 mx-auto" />
+            <p className="text-small font-medium text-text">No redeemed coupons yet</p>
+            <p className="text-xs text-text-3 max-w-sm mx-auto">
+              Contribute verified reports and safety check-ins to earn points redeemable for partner discounts.
+            </p>
+          </div>
+        ) : (
+          <div className="divide-y divide-border border border-border rounded-btn overflow-hidden">
+            {myCoupons.map((c) => (
+              <div
+                key={c.id}
+                className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white hover:bg-surface transition-colors"
+              >
+                <div className="space-y-1">
+                  <div className="font-semibold text-text text-body">
+                    {c.offers?.title || 'Mountain Stay Partner Discount'}
+                  </div>
+
+                  <div className="flex items-center gap-2 text-xs text-text-3 font-mono">
+                    <span>Redeemed {new Date(c.created_at).toLocaleDateString()}</span>
+                    <span>·</span>
+                    <Badge variant="sponsored">DEMO Offer</Badge>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 self-end sm:self-auto">
+                  <span className="px-3 py-1 bg-surface-2 border border-border rounded font-mono font-bold text-xs tracking-widest text-brand">
+                    {c.code}
+                  </span>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </Card>

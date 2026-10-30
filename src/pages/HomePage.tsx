@@ -794,7 +794,7 @@ export const HomePage: React.FC = () => {
                 Community Karma & Safety Rewards
               </h4>
               <span className="px-2 py-0.5 rounded-chip text-[11px] font-mono font-bold bg-brand text-white">
-                {profile?.points ?? 100} PTS
+                {profile?.points ?? 0} PTS
               </span>
             </div>
             <p className="text-xs text-text-2 mt-0.5">
