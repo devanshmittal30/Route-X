@@ -38,7 +38,6 @@ import type { EarthquakeSummary } from '../features/quakes/types';
 import { RouteXMap } from '../components/map/RouteXMap';
 import { EmptyState } from '../components/ui/EmptyState';
 import { Button } from '../components/ui/Button';
-import { Card } from '../components/ui/Card';
 import { RiskBadge } from '../components/ui/RiskBadge';
 import { RiskMeter } from '../components/ui/RiskMeter';
 import { supabase } from '../lib/supabase';
@@ -48,6 +47,7 @@ import type { HazardReport } from '../features/reports/types';
 import { ReportCard } from '../components/reports/ReportCard';
 import { ReportModal } from '../components/reports/ReportModal';
 import { ReportDetailDrawer } from '../components/reports/ReportDetailDrawer';
+import { SponsoredStaysSection } from '../components/stays/SponsoredStaysSection';
 import type { LayerManagerAPI, MarkerHandle } from '../features/map/types';
 
 // Default initial hill location: Shimla, Himachal Pradesh
@@ -779,80 +779,8 @@ export const HomePage: React.FC = () => {
         </div>
       </div>
 
-      {/* 6. Sponsored Stays Placeholder (Section 6.1 & 6.9) */}
-      <div className="bg-white border border-border rounded-card p-5 shadow-xs">
-        <div className="flex items-center justify-between mb-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="text-h3 font-bold text-brand">Verified Safe Stays</h3>
-              <span className="px-2 py-0.5 rounded-chip text-[10px] font-semibold bg-sponsored-soft text-sponsored border border-sponsored/30 uppercase tracking-wide">
-                Sponsored (Demo)
-              </span>
-            </div>
-            <p className="text-xs text-text-2">
-              Homestays and shelters located outside active landslide runout paths.
-            </p>
-          </div>
-
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => navigate('/stays')}
-          >
-            Explore All Stays
-          </Button>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 pt-2">
-          {[
-            {
-              name: 'Demo Himalayan Pine Homestay',
-              city: 'Shimla',
-              reason: 'Stable bedrock slope; 0 reports in 5 km',
-              points: '50 pts coupon',
-            },
-            {
-              name: 'Demo Valley View Mountain Lodge',
-              city: 'Manali',
-              reason: 'Elevated bedrock; backup generator',
-              points: '30 pts meal',
-            },
-            {
-              name: 'Demo Cloud Peak Trekker Haven',
-              city: 'Shillong',
-              reason: 'Offline trail guides; gear dry room',
-              points: '45 pts coupon',
-            },
-            {
-              name: 'Demo Mountain Trail Outfitter',
-              city: 'Guwahati',
-              reason: 'Safety poles & emergency gear rental',
-              points: '25 pts gear',
-            },
-          ].map((stay) => (
-            <Card key={stay.name} className="p-3.5 border-border bg-surface hover:shadow-xs transition-shadow">
-              <div className="flex items-center justify-between gap-1 mb-1">
-                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-chip bg-risk-low-soft text-risk-low border border-risk-low/30">
-                  Low Risk Location
-                </span>
-                <span className="text-[10px] text-text-3 font-mono">{stay.city}</span>
-              </div>
-              <h4 className="font-semibold text-text text-xs line-clamp-1 mt-1">{stay.name}</h4>
-              <p className="text-[11px] text-text-2 line-clamp-2 mt-1 leading-relaxed">{stay.reason}</p>
-              <div className="flex items-center justify-between pt-2.5 mt-2 border-t border-border/60 text-xs">
-                <span className="text-brand font-medium text-[11px] font-mono">{stay.points}</span>
-                <button
-                  type="button"
-                  onClick={() => navigate('/rewards')}
-                  className="text-accent hover:underline text-[11px] font-medium"
-                >
-                  Redeem →
-                </button>
-              </div>
-            </Card>
-          ))}
-        </div>
-      </div>
+      {/* 6. Sponsored Stays (Doc 03 Section 9 & Doc 04 P9) */}
+      <SponsoredStaysSection userCoordinates={[location.longitude, location.latitude]} />
 
       {/* 7. Rewards Teaser Card */}
       <div className="bg-gradient-to-r from-surface to-brand-soft/40 border border-border rounded-card p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs">

@@ -1,7 +1,7 @@
 import type React from 'react';
 
 export interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
-  variant?: 'neutral' | 'brand' | 'info' | 'verified' | 'sponsored' | 'test';
+  variant?: 'neutral' | 'brand' | 'info' | 'verified' | 'sponsored' | 'test' | 'disputed';
   icon?: React.ReactNode;
 }
 
@@ -16,9 +16,10 @@ export const Badge: React.FC<BadgeProps> = ({
     neutral: 'bg-surface-2 text-text-2 border border-border',
     brand: 'bg-brand-soft text-brand font-medium',
     info: 'bg-info-soft text-info font-medium',
-    verified: 'bg-verified-soft text-verified font-medium',
-    sponsored: 'bg-sponsored-soft text-sponsored font-medium',
+    verified: 'bg-verified-soft text-verified font-medium border border-verified/20',
+    sponsored: 'bg-sponsored-soft text-sponsored font-medium border border-sponsored/30',
     test: 'bg-test-soft text-test border border-border font-medium',
+    disputed: 'bg-risk-moderate-soft text-risk-moderate font-medium border border-risk-moderate/30',
   };
 
   return (

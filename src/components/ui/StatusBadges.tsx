@@ -1,5 +1,5 @@
 import type React from 'react';
-import { FlaskConical, Megaphone, BadgeCheck, Sparkles } from 'lucide-react';
+import { FlaskConical, Megaphone, BadgeCheck, Sparkles, ShieldAlert } from 'lucide-react';
 
 export interface TestBadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
   size?: 'sm' | 'md';
@@ -21,9 +21,15 @@ export const TestBadge: React.FC<TestBadgeProps> = ({ size = 'md', className = '
 
 export interface DemoBadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
   size?: 'sm' | 'md';
+  label?: string;
 }
 
-export const DemoBadge: React.FC<DemoBadgeProps> = ({ size = 'md', className = '', ...props }) => {
+export const DemoBadge: React.FC<DemoBadgeProps> = ({
+  size = 'md',
+  label = 'DEMO',
+  className = '',
+  ...props
+}) => {
   const sizeClasses = size === 'sm' ? 'text-xs px-2 py-0.5 gap-1' : 'text-small px-2.5 py-0.5 gap-1.5';
   return (
     <span
@@ -32,16 +38,22 @@ export const DemoBadge: React.FC<DemoBadgeProps> = ({ size = 'md', className = '
       {...props}
     >
       <Sparkles className={size === 'sm' ? 'w-3 h-3' : 'w-3.5 h-3.5'} />
-      <span>DEMO</span>
+      <span>{label}</span>
     </span>
   );
 };
 
 export interface SponsoredBadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
   size?: 'sm' | 'md';
+  label?: string;
 }
 
-export const SponsoredBadge: React.FC<SponsoredBadgeProps> = ({ size = 'md', className = '', ...props }) => {
+export const SponsoredBadge: React.FC<SponsoredBadgeProps> = ({
+  size = 'md',
+  label = 'Sponsored (Demo)',
+  className = '',
+  ...props
+}) => {
   const sizeClasses = size === 'sm' ? 'text-xs px-2 py-0.5 gap-1' : 'text-small px-2.5 py-0.5 gap-1.5';
   return (
     <span
@@ -50,7 +62,7 @@ export const SponsoredBadge: React.FC<SponsoredBadgeProps> = ({ size = 'md', cla
       {...props}
     >
       <Megaphone className={size === 'sm' ? 'w-3 h-3' : 'w-3.5 h-3.5'} />
-      <span>Sponsored (Demo)</span>
+      <span>{label}</span>
     </span>
   );
 };
@@ -74,7 +86,31 @@ export const VerifiedBadge: React.FC<VerifiedBadgeProps> = ({
       {...props}
     >
       <BadgeCheck className={size === 'sm' ? 'w-3.5 h-3.5' : 'w-4 h-4'} />
-      <span>{count !== undefined ? `Verified by ${count}` : 'Verified'}</span>
+      <span>{count !== undefined && count > 0 ? `Verified by ${count}` : 'Verified'}</span>
+    </span>
+  );
+};
+
+export interface DisputedBadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
+  count?: number;
+  size?: 'sm' | 'md';
+}
+
+export const DisputedBadge: React.FC<DisputedBadgeProps> = ({
+  count,
+  size = 'md',
+  className = '',
+  ...props
+}) => {
+  const sizeClasses = size === 'sm' ? 'text-xs px-2 py-0.5 gap-1' : 'text-small px-2.5 py-0.5 gap-1.5';
+  return (
+    <span
+      className={`inline-flex items-center rounded-chip font-medium bg-risk-moderate-soft text-risk-moderate border border-risk-moderate/30 select-none ${sizeClasses} ${className}`}
+      title={count ? `Disputed by ${count} contributors` : 'Community disputed'}
+      {...props}
+    >
+      <ShieldAlert className={size === 'sm' ? 'w-3.5 h-3.5' : 'w-4 h-4'} />
+      <span>{count !== undefined && count > 0 ? `Disputed (${count})` : 'Disputed'}</span>
     </span>
   );
 };

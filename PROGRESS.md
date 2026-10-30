@@ -132,8 +132,71 @@
   - Updated Home page (`src/pages/HomePage.tsx`) AREA RISK box to use the single-point 4-neighbour slope sample engine.
   - Updated About page (`src/pages/AboutPage.tsx`) with full methodology, formulas, bands, weights, data sources, and verbatim limitations from Doc 03 section 15.
 
+- **P8 Hazards and Community Reports**:
+  - Implemented 5-step report modal wizard per Doc 02 section 6.4 with Zod validation (type, severity 1–3, description <= 500 chars, location within India bbox via GPS/pin, optional photo upload to Storage bucket `report-photos` <= 3 MB jpeg/png/webp, login required).
+  - Implemented duplicate detection (same type within 200 m in last 2 h -> shows existing report and suggests voting).
+  - Enforced 5 reports/hour rate limiting at database trigger and client service levels.
+  - Implemented expiry intervals (+72h landslide/rockfall/bridge, +48h road_blocked/flood, +24h snow/all_clear).
+  - Built community feed on `/reports` and Home page with filter tabs (All, Verified, Pending), sorting (newest/distance), and Supabase Realtime live subscriptions.
+  - Added 14 unit tests in `src/features/reports/reports.test.ts` (83/83 total tests passed).
+
+- **P9 Voting, Trust, Points, Rewards, Coupons & Demo Offers**:
+  - Refined `VerifyBar` component: thumbs up / thumbs down with counts, text "Verified by N people", blue `VerifiedBadge` when verified, `DisputedBadge` when disputed, disabled with informative tooltip when logged out or own report, and optimistic UI with instant rollback on error.
+  - Implemented pure status transition and rewards engine in `src/features/rewards/rules.ts` and SQL migration `supabase/migrations/003_voting_rewards_update.sql`:
+    - 3 net upvotes (`up - down >= 3` and `up >= 3`) -> `verified`, reporter +20 pts (+10 if all_clear), +3 trust score (cap 100), matching voters +1 trust (cap 100).
+    - 3 net downvotes (`down - up >= 3`) -> `disputed`, reporter -15 pts (floor 0), -10 trust score (floor 0), matching voters +1 trust (cap 100).
+    - Voter reward: +1 pt per vote on other users' reports (capped at 10 pts/day).
+    - Test data (`is_test = true`): strictly 0 points and 0 trust alterations.
+  - Implemented ranking rule and "Why this stay" generator in `src/features/rewards/ranking.ts` per Doc 03 section 9:
+    1. Safety level first (Low before Moderate before High; Severe hidden).
+    2. Sponsored/demo partner first within the same safety level.
+    3. Distance (closest first).
+    - "Why this stay" line generated using ONLY real fields (distance, risk level & score, amenity category).
+  - Replaced Home page placeholder with live `SponsoredStaysSection`: evaluates local risk, filters severe zones, applies ranking rule, and displays "Why this stay" line.
+  - Built full Rewards page (`src/pages/RewardsPage.tsx`) per Doc 02 section 6.10:
+    - Large points balance display and trust score with contributor level progress bar.
+    - Points ledger table displaying date, activity reason, and delta (+/- in green/red).
+    - Available DEMO offers grid with points cost and `DemoBadge`.
+    - Redeem modal (`src/components/rewards/RedeemModal.tsx`): calls `redeem_offer` RPC, handles "one per offer per day" error, displays unique 8-char coupon code in JetBrains Mono font, expiry, terms, and prominent rotated "DEMO COUPON" watermark.
+    - My Active Coupons tab with copy button.
+    - "How Community Karma Works" explainer card.
+  - Real database statistics on Home page: reads verified real reports count (`status = 'verified'`, `is_test = false`) and contributors count (`is_test = false`), defaulting to 0.
+  - Added 15 Vitest unit tests in `src/features/rewards/rewards.test.ts` (98/98 tests passing across 7 suites).
+
+### Manual Test Script for P9 Acceptance (Two Real Accounts)
+1. **User A (Reporter)**:
+   - Sign in as User A at `/login`.
+   - Navigate to `/reports` and click "Report Hazard".
+   - Submit a real report (e.g. Type: "Rockfall", Severity: 2, Description: "Loose scree on downhill bend", Pin near Shimla).
+   - Verify report appears with "Pending verification" and initial 0 up / 0 down.
+   - Note User A initial point balance on `/rewards` (e.g. +5 pts for report submission).
+2. **User B (First Confirming Traveler)**:
+   - Open incognito window and sign in as User B at `/login`.
+   - Open `/reports` or find the marker on `/map`.
+   - Verify thumbs up button is enabled and tooltip reads "Confirm hazard is still present (+1 karma pt)".
+   - Click Thumbs Up (👍).
+   - Observe instant count updates to 1 up. User B receives +1 pt in `/rewards` points ledger.
+3. **User C (Second Confirming Traveler)**:
+   - Sign in as User C.
+   - Click Thumbs Up (👍) on the same report.
+   - Observe count updates to 2 up.
+4. **User D (Third Confirming Traveler - Verification Trigger)**:
+   - Sign in as User D.
+   - Click Thumbs Up (👍) on the same report (now 3 up, 0 down -> net 3).
+   - Observe the report status automatically transitions to **"Verified by 3 people"** with the blue `VerifiedBadge`.
+5. **Verify Points & Trust Transitions for User A**:
+   - Switch back to User A's browser and check `/rewards`.
+   - Observe User A received **+20 points** and **+3 trust score** in the Points Ledger ("Report verified by community").
+6. **Redeem Demo Partner Coupon**:
+   - In User A's `/rewards` page, locate an available offer (e.g. "Free Hot Mountain Meal & Shelter Rest (Demo)" - 30 pts).
+   - Click "Redeem" to open the Redeem Modal.
+   - Click "Confirm Redemption (30 pts)".
+   - Observe unique 8-character code displayed in JetBrains Mono font (e.g. `B7E2A91F`), with expiry date, terms, and "DEMO COUPON" watermark.
+   - Points balance immediately reflects deduction.
+   - Attempting to redeem the same offer again today shows the friendly error: *"Offer already redeemed today. Limit: 1 redemption per offer per day."*
+
 ## In progress
-- Ready for P8 (Hazards, community reports and verification).
+- Ready for P10 (Hazard layers and Hazard Map page).
 
 ## Questions for the user
 - None. Ready for next prompt.
