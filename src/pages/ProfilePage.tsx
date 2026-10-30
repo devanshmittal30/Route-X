@@ -311,12 +311,26 @@ export const ProfilePage: React.FC = () => {
     );
   }
 
+  const rawName =
+    profile?.display_name?.trim() ||
+    displayName?.trim() ||
+    (user?.user_metadata?.full_name as string)?.trim() ||
+    (user?.user_metadata?.name as string)?.trim() ||
+    (user?.email ? user.email.split('@')[0] : '');
+
+  const formattedName = rawName
+    ? rawName.charAt(0).toUpperCase() + rawName.slice(1)
+    : 'there';
+
   return (
     <div className="max-w-[1000px] w-full mx-auto px-4 py-8 space-y-8">
       {/* Profile Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-border">
         <div>
-          <h1 className="text-h1 font-bold text-brand">My Profile</h1>
+          <h1 className="text-h1 font-bold text-brand flex items-center gap-2">
+            <span>Hello, {formattedName}</span>
+            <span className="text-2xl select-none">👋</span>
+          </h1>
           <p className="text-small text-text-2">{user.email}</p>
         </div>
         <Button
