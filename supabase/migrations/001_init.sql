@@ -3,35 +3,45 @@
 -- Mountain & Disaster-Aware Navigation Schema
 -- ============================================================================
 
--- Enable PostGIS extension for spatial queries (points, lines, distance buffers)
-create extension if not exists postgis;
+-- 1. Ensure PostGIS & UUID extensions are active in the extensions schema
+create extension if not exists "uuid-ossp" with schema extensions;
+create extension if not exists postgis with schema extensions;
+
+-- Set search_path so PostGIS types (geography, geometry) and functions (ST_*) resolve smoothly
+set search_path to public, extensions;
 
 -- ----------------------------------------------------------------------------
--- 1. Custom Types
+-- 2. Custom Types (Idempotent creation)
 -- ----------------------------------------------------------------------------
-create type report_type as enum (
-  'landslide',
-  'road_blocked',
-  'flood',
-  'snow',
-  'rockfall',
-  'bridge_damage',
-  'all_clear'
-);
-
-create type report_status as enum (
-  'pending',
-  'verified',
-  'disputed',
-  'resolved',
-  'expired'
-);
+do $$
+begin
+  if not exists (select 1 from pg_type where typname = 'report_type') then
+    create type report_type as enum (
+      'landslide',
+      'road_blocked',
+      'flood',
+      'snow',
+      'rockfall',
+      'bridge_damage',
+      'all_clear'
+    );
+  end if;
+  if not exists (select 1 from pg_type where typname = 'report_status') then
+    create type report_status as enum (
+      'pending',
+      'verified',
+      'disputed',
+      'resolved',
+      'expired'
+    );
+  end if;
+end $$;
 
 -- ----------------------------------------------------------------------------
--- 2. User Profiles
+-- 3. User Profiles
 -- Rule: display name, optional phone, balance never below 0, trust score 0-100
 -- ----------------------------------------------------------------------------
-create table profiles (
+create table if not exists profiles (
   id uuid primary key references auth.users on delete cascade,
   display_name text,
   phone text,
@@ -41,10 +51,10 @@ create table profiles (
 );
 
 -- ----------------------------------------------------------------------------
--- 3. Emergency Contacts
+-- 4. Emergency Contacts
 -- Rule: max contacts per user, cascade on profile delete
 -- ----------------------------------------------------------------------------
-create table emergency_contacts (
+create table if not exists emergency_contacts (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references profiles(id) on delete cascade,
   name text not null,
@@ -52,13 +62,13 @@ create table emergency_contacts (
   relation text,
   created_at timestamptz not null default now()
 );
-create index emergency_contacts_user_idx on emergency_contacts (user_id);
+create index if not exists emergency_contacts_user_idx on emergency_contacts (user_id);
 
 -- ----------------------------------------------------------------------------
--- 4. Hazard Reports
+-- 5. Hazard Reports
 -- Rule: Crowdsourced reports with peer verification, PostGIS geometry
 -- ----------------------------------------------------------------------------
-create table hazard_reports (
+create table if not exists hazard_reports (
   id uuid primary key default gen_random_uuid(),
   user_id uuid references profiles(id) on delete set null,
   type report_type not null,
@@ -75,15 +85,15 @@ create table hazard_reports (
   resolved_at timestamptz,
   resolves_report_id uuid references hazard_reports(id)
 );
-create index hazard_reports_geom_idx on hazard_reports using gist (geom);
-create index hazard_reports_status_idx on hazard_reports (status, expires_at);
-create index hazard_reports_created_idx on hazard_reports (created_at desc);
+create index if not exists hazard_reports_geom_idx on hazard_reports using gist (geom);
+create index if not exists hazard_reports_status_idx on hazard_reports (status, expires_at);
+create index if not exists hazard_reports_created_idx on hazard_reports (created_at desc);
 
 -- ----------------------------------------------------------------------------
--- 5. Report Votes
+-- 6. Report Votes
 -- Rule: One vote per user per report, smallint vote in (-1, 1)
 -- ----------------------------------------------------------------------------
-create table report_votes (
+create table if not exists report_votes (
   report_id uuid not null references hazard_reports(id) on delete cascade,
   user_id uuid not null references profiles(id) on delete cascade,
   vote smallint not null check (vote in (-1, 1)),
@@ -92,10 +102,10 @@ create table report_votes (
 );
 
 -- ----------------------------------------------------------------------------
--- 6. Points Ledger
+-- 7. Points Ledger
 -- Rule: Immutable points audit trail, never below 0 balance
 -- ----------------------------------------------------------------------------
-create table points_ledger (
+create table if not exists points_ledger (
   id bigint generated always as identity primary key,
   user_id uuid not null references profiles(id) on delete cascade,
   delta int not null,
@@ -103,13 +113,13 @@ create table points_ledger (
   ref_id uuid,
   created_at timestamptz not null default now()
 );
-create index points_ledger_user_idx on points_ledger (user_id, created_at desc);
+create index if not exists points_ledger_user_idx on points_ledger (user_id, created_at desc);
 
 -- ----------------------------------------------------------------------------
--- 7. Historical Landslides
+-- 8. Historical Landslides
 -- Rule: GSI / official inventory data
 -- ----------------------------------------------------------------------------
-create table historical_landslides (
+create table if not exists historical_landslides (
   id bigint generated always as identity primary key,
   source text not null,
   source_event_id text,
@@ -120,13 +130,13 @@ create table historical_landslides (
   location_text text,
   unique (source, source_event_id)
 );
-create index hist_geom_idx on historical_landslides using gist (geom);
+create index if not exists hist_geom_idx on historical_landslides using gist (geom);
 
 -- ----------------------------------------------------------------------------
--- 8. Partners (Demo / Sponsored)
+-- 9. Partners (Demo / Sponsored)
 -- Rule: Invented neutral names, category in ('stay','food','gear','transport')
 -- ----------------------------------------------------------------------------
-create table partners (
+create table if not exists partners (
   id uuid primary key default gen_random_uuid(),
   name text not null,
   category text not null check (category in ('stay', 'food', 'gear', 'transport')),
@@ -137,9 +147,9 @@ create table partners (
 );
 
 -- ----------------------------------------------------------------------------
--- 9. Offers & Redemptions
+-- 10. Offers & Redemptions
 -- ----------------------------------------------------------------------------
-create table offers (
+create table if not exists offers (
   id uuid primary key default gen_random_uuid(),
   partner_id uuid not null references partners(id) on delete cascade,
   title text not null,
@@ -149,7 +159,7 @@ create table offers (
   is_demo boolean not null default true
 );
 
-create table redemptions (
+create table if not exists redemptions (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references profiles(id) on delete cascade,
   offer_id uuid not null references offers(id),
@@ -157,12 +167,12 @@ create table redemptions (
   status text not null default 'issued',
   created_at timestamptz not null default now()
 );
-create index redemptions_user_idx on redemptions (user_id, created_at desc);
+create index if not exists redemptions_user_idx on redemptions (user_id, created_at desc);
 
 -- ----------------------------------------------------------------------------
--- 10. SOS Events & Saved Routes
+-- 11. SOS Events & Saved Routes
 -- ----------------------------------------------------------------------------
-create table sos_events (
+create table if not exists sos_events (
   id uuid primary key default gen_random_uuid(),
   user_id uuid references profiles(id) on delete set null,
   condition text,
@@ -172,7 +182,7 @@ create table sos_events (
   created_at timestamptz not null default now()
 );
 
-create table saved_routes (
+create table if not exists saved_routes (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references profiles(id) on delete cascade,
   from_label text,
@@ -183,14 +193,14 @@ create table saved_routes (
   created_at timestamptz not null default now()
 );
 
-create table weather_cache (
+create table if not exists weather_cache (
   cache_key text primary key,
   payload jsonb not null,
   fetched_at timestamptz not null default now()
 );
 
 -- ============================================================================
--- ROW LEVEL SECURITY (RLS) POLICIES
+-- ROW LEVEL SECURITY (RLS) POLICIES (Idempotent drop + create)
 -- ============================================================================
 
 alter table profiles enable row level security;
@@ -207,84 +217,102 @@ alter table saved_routes enable row level security;
 alter table weather_cache enable row level security;
 
 -- Profiles: users read and update their own profile
+drop policy if exists "Users can view own profile" on profiles;
 create policy "Users can view own profile"
   on profiles for select
   using (auth.uid() = id);
 
+drop policy if exists "Users can update own profile" on profiles;
 create policy "Users can update own profile"
   on profiles for update
   using (auth.uid() = id);
 
 -- Emergency Contacts: strictly isolated to the owning user
+drop policy if exists "Users can view own emergency contacts" on emergency_contacts;
 create policy "Users can view own emergency contacts"
   on emergency_contacts for select
   using (auth.uid() = user_id);
 
+drop policy if exists "Users can insert own emergency contacts" on emergency_contacts;
 create policy "Users can insert own emergency contacts"
   on emergency_contacts for insert
   with check (auth.uid() = user_id);
 
+drop policy if exists "Users can update own emergency contacts" on emergency_contacts;
 create policy "Users can update own emergency contacts"
   on emergency_contacts for update
   using (auth.uid() = user_id);
 
+drop policy if exists "Users can delete own emergency contacts" on emergency_contacts;
 create policy "Users can delete own emergency contacts"
   on emergency_contacts for delete
   using (auth.uid() = user_id);
 
 -- Hazard Reports: everyone can read reports; logged in users can insert
+drop policy if exists "Anyone can read hazard reports" on hazard_reports;
 create policy "Anyone can read hazard reports"
   on hazard_reports for select
   using (true);
 
+drop policy if exists "Authenticated users can create hazard reports" on hazard_reports;
 create policy "Authenticated users can create hazard reports"
   on hazard_reports for insert
   with check (auth.uid() is not null and (user_id is null or auth.uid() = user_id));
 
 -- Report Votes: users can view own votes; inserting is done via cast_vote()
+drop policy if exists "Users can view own votes" on report_votes;
 create policy "Users can view own votes"
   on report_votes for select
   using (auth.uid() = user_id);
 
 -- Points Ledger: users can read their own points history
+drop policy if exists "Users can view own points ledger" on points_ledger;
 create policy "Users can view own points ledger"
   on points_ledger for select
   using (auth.uid() = user_id);
 
 -- Historical Landslides: public read-only
+drop policy if exists "Anyone can read historical landslides" on historical_landslides;
 create policy "Anyone can read historical landslides"
   on historical_landslides for select
   using (true);
 
 -- Partners & Offers: public read-only
+drop policy if exists "Anyone can read partners" on partners;
 create policy "Anyone can read partners"
   on partners for select
   using (true);
 
+drop policy if exists "Anyone can read offers" on offers;
 create policy "Anyone can read offers"
   on offers for select
   using (true);
 
 -- Redemptions: users can only see their own issued coupon codes
+drop policy if exists "Users can view own redemptions" on redemptions;
 create policy "Users can view own redemptions"
   on redemptions for select
   using (auth.uid() = user_id);
 
 -- SOS Events: users can insert and view their own events
+drop policy if exists "Users can insert sos events" on sos_events;
 create policy "Users can insert sos events"
   on sos_events for insert
   with check (auth.uid() is null or auth.uid() = user_id);
 
+drop policy if exists "Users can view own sos events" on sos_events;
 create policy "Users can view own sos events"
   on sos_events for select
   using (auth.uid() = user_id);
 
 -- Saved Routes: own only
+drop policy if exists "Users can manage own saved routes" on saved_routes;
 create policy "Users can manage own saved routes"
   on saved_routes for all
   using (auth.uid() = user_id);
 
 -- Weather Cache: public read-only
+drop policy if exists "Anyone can read weather cache" on weather_cache;
 create policy "Anyone can read weather cache"
   on weather_cache for select
   using (true);
@@ -298,7 +326,7 @@ create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, extensions
 as $$
 begin
   insert into public.profiles (id, display_name, phone, points, trust_score)
@@ -308,12 +336,14 @@ begin
     new.raw_user_meta_data->>'phone',
     0,
     50
-  );
+  )
+  on conflict (id) do nothing;
   return new;
 end;
 $$;
 
-create or replace trigger on_auth_user_created
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created
   after insert on auth.users
   for each row execute procedure public.handle_new_user();
 
@@ -322,6 +352,7 @@ create or replace trigger on_auth_user_created
 create or replace function public.set_report_defaults()
 returns trigger
 language plpgsql
+set search_path = public, extensions
 as $$
 begin
   if new.expires_at is null then
@@ -337,7 +368,8 @@ begin
 end;
 $$;
 
-create or replace trigger on_hazard_report_created
+drop trigger if exists on_hazard_report_created on public.hazard_reports;
+create trigger on_hazard_report_created
   before insert on public.hazard_reports
   for each row execute procedure public.set_report_defaults();
 
@@ -353,6 +385,7 @@ returns setof hazard_reports
 language sql
 stable
 security definer
+set search_path = public, extensions
 as $$
   select *
   from hazard_reports
@@ -375,6 +408,7 @@ returns setof hazard_reports
 language sql
 stable
 security definer
+set search_path = public, extensions
 as $$
   select *
   from hazard_reports
@@ -396,7 +430,7 @@ create or replace function public.cast_vote(
 returns jsonb
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, extensions
 as $$
 declare
   v_voter_id uuid;
@@ -523,7 +557,7 @@ create or replace function public.redeem_offer(
 returns jsonb
 language plpgsql
 security definer
-set search_path = public
+set search_path = public, extensions
 as $$
 declare
   v_user_id uuid;
@@ -593,6 +627,7 @@ create or replace function public.expire_reports()
 returns int
 language plpgsql
 security definer
+set search_path = public, extensions
 as $$
 declare
   v_expired_count int;
@@ -605,4 +640,3 @@ begin
   return v_expired_count;
 end;
 $$;
-

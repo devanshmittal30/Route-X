@@ -6,6 +6,8 @@
 -- Zero fake users, zero fake points, zero fake weather or historic data.
 -- ============================================================================
 
+set search_path to public, extensions;
+
 -- ----------------------------------------------------------------------------
 -- 1. Fictional Demo Partners (Invented Neutral Names Only)
 -- ----------------------------------------------------------------------------
@@ -46,7 +48,8 @@ values
     'Guwahati',
     ST_SetSRID(ST_MakePoint(91.7362, 26.1445), 4326)::geography,
     true
-  );
+  )
+on conflict (id) do nothing;
 
 -- ----------------------------------------------------------------------------
 -- 2. Demo Partner Offers (Points Redeemable)
@@ -88,7 +91,8 @@ values
     25,
     current_date + interval '90 days',
     true
-  );
+  )
+on conflict (id) do nothing;
 
 -- ----------------------------------------------------------------------------
 -- 3. Clearly Labelled Test Hazard Reports (8 Realistic Himalayan/Northeast Points)
@@ -108,116 +112,116 @@ insert into hazard_reports (
   expires_at
 )
 values
-  -- 1. Shimla NH5 bypass (Himachal)
+  -- 1. Shimla Bypass / NH5 (Himachal)
   (
     '20000000-0000-0000-0000-000000000001',
     'landslide',
-    2,
-    '[TEST] Mud and loose debris on the left lane near Shimla bypass. Heavy vehicles diverted.',
-    ST_SetSRID(ST_MakePoint(77.1734, 31.1048), 4326)::geography,
+    3,
+    '[TEST] Landslide on NH5 bypass slope near Shimla. Both lanes partially blocked by mud and boulders. Clearing operations underway.',
+    ST_SetSRID(ST_MakePoint(77.1650, 31.0950), 4326)::geography,
     'verified',
     true,
     5,
-    1,
-    now() - interval '4 hours',
-    now() + interval '68 hours'
-  ),
-  -- 2. Manali NH3 road cut (Himachal)
-  (
-    '20000000-0000-0000-0000-000000000002',
-    'road_blocked',
-    3,
-    '[TEST] Boulder fall blocking both lanes near Beas riverbank. Bulldozer clearing in progress.',
-    ST_SetSRID(ST_MakePoint(77.1892, 32.2432), 4326)::geography,
-    'verified',
-    true,
-    8,
     0,
     now() - interval '2 hours',
-    now() + interval '46 hours'
+    now() + interval '70 hours'
   ),
-  -- 3. Dharamshala / McLeodganj road (Himachal)
+  -- 2. Beas River Bank / Manali (Himachal)
+  (
+    '20000000-0000-0000-0000-000000000002',
+    'flood',
+    2,
+    '[TEST] Elevated water levels along low-lying Beas river road near Old Manali. Water overtopping culvert, high-clearance 4x4 only.',
+    ST_SetSRID(ST_MakePoint(77.1820, 32.2470), 4326)::geography,
+    'verified',
+    true,
+    4,
+    1,
+    now() - interval '5 hours',
+    now() + interval '43 hours'
+  ),
+  -- 3. Rohtang Pass Approach / Atal Tunnel North Portal (Himachal)
   (
     '20000000-0000-0000-0000-000000000003',
-    'rockfall',
-    1,
-    '[TEST] Small gravel and loose stones rolling down steep cutting after morning rain.',
-    ST_SetSRID(ST_MakePoint(76.3234, 32.2190), 4326)::geography,
+    'snow',
+    2,
+    '[TEST] Fresh snowfall and black ice near North Portal approach. Anti-skid chains strongly recommended.',
+    ST_SetSRID(ST_MakePoint(77.1450, 32.4100), 4326)::geography,
     'pending',
     true,
     2,
     0,
     now() - interval '1 hour',
-    now() + interval '71 hours'
+    now() + interval '23 hours'
   ),
-  -- 4. Joshimath / Alaknanda corridor (Uttarakhand)
+  -- 4. NH10 Teesta Valley / Gangtok Route (Sikkim)
   (
     '20000000-0000-0000-0000-000000000004',
-    'landslide',
+    'rockfall',
     3,
-    '[TEST] Soil slump over 30 meters of roadway near ravine bend. Single lane passage only.',
-    ST_SetSRID(ST_MakePoint(79.5664, 30.5564), 4326)::geography,
+    '[TEST] Intermittent rockfall on NH10 near 29th Mile stretch. Traffic paused intermittently by authorities.',
+    ST_SetSRID(ST_MakePoint(88.4800, 27.1200), 4326)::geography,
     'verified',
     true,
     6,
     0,
-    now() - interval '6 hours',
-    now() + interval '66 hours'
+    now() - interval '3 hours',
+    now() + interval '69 hours'
   ),
-  -- 5. Gangtok NH10 (Sikkim)
+  -- 5. Sela Pass Highway / Tawang Road (Arunachal Pradesh)
   (
     '20000000-0000-0000-0000-000000000005',
-    'flood',
-    2,
-    '[TEST] Overflowing stream culvert flooding low stretch of road. High clearance 4x4 recommended.',
-    ST_SetSRID(ST_MakePoint(88.6065, 27.3389), 4326)::geography,
+    'snow',
+    3,
+    '[TEST] Heavy blizzard accumulation and freezing fog around Sela Pass (13,700 ft). Visibility below 10m.',
+    ST_SetSRID(ST_MakePoint(92.1000, 27.5000), 4326)::geography,
     'verified',
     true,
-    4,
-    1,
-    now() - interval '3 hours',
-    now() + interval '45 hours'
+    8,
+    0,
+    now() - interval '6 hours',
+    now() + interval '18 hours'
   ),
-  -- 6. Shillong / Cherrapunji route (Meghalaya)
+  -- 6. Shillong to Cherrapunji GVK Bridge / Meghalaya
   (
     '20000000-0000-0000-0000-000000000006',
     'bridge_damage',
     2,
-    '[TEST] Guard rail damaged by flash torrent on small bridge. Passable with caution.',
-    ST_SetSRID(ST_MakePoint(91.8933, 25.5788), 4326)::geography,
+    '[TEST] Concrete joint damage and surface erosion on narrow gorge bridge. Single-lane alternating traffic allowed.',
+    ST_SetSRID(ST_MakePoint(91.7300, 25.3200), 4326)::geography,
     'pending',
     true,
     1,
     0,
-    now() - interval '30 minutes',
-    now() + interval '71 hours'
+    now() - interval '4 hours',
+    now() + interval '68 hours'
   ),
-  -- 7. Tawang Sela Pass sector (Arunachal Pradesh)
+  -- 7. Guwahati Brahmaputra Riverfront Access Road (Assam)
   (
     '20000000-0000-0000-0000-000000000007',
-    'snow',
-    2,
-    '[TEST] Fresh early snowfall and black ice near high altitude bend. Skid risk high.',
-    ST_SetSRID(ST_MakePoint(91.8594, 27.5861), 4326)::geography,
+    'road_blocked',
+    1,
+    '[TEST] Fallen tree across two lanes after strong squall near Bharalumukh ghat road. Detour via MG Road.',
+    ST_SetSRID(ST_MakePoint(91.7310, 26.1780), 4326)::geography,
     'verified',
     true,
-    4,
+    3,
     0,
-    now() - interval '5 hours',
-    now() + interval '19 hours'
+    now() - interval '30 minutes',
+    now() + interval '47 hours'
   ),
-  -- 8. Guwahati valley approach (Assam)
+  -- 8. Dharamshala - McLeodganj Bypass (Himachal)
   (
     '20000000-0000-0000-0000-000000000008',
     'all_clear',
     1,
-    '[TEST] Previous localized waterlogging cleared by municipal pumps. Road fully open.',
-    ST_SetSRID(ST_MakePoint(91.7362, 26.1445), 4326)::geography,
+    '[TEST] Road clearing completed on upper bypass. Mud removed, traffic flowing normally in both directions.',
+    ST_SetSRID(ST_MakePoint(76.3240, 32.2350), 4326)::geography,
     'verified',
     true,
-    5,
+    4,
     0,
     now() - interval '1 hour',
     now() + interval '23 hours'
-  );
-
+  )
+on conflict (id) do nothing;
