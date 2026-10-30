@@ -1,0 +1,144 @@
+import maplibregl from 'maplibre-gl';
+import type { StyleSpecification } from 'maplibre-gl';
+import { Protocol, PMTiles } from 'pmtiles';
+import { layers as protomapsLayers, namedFlavor } from '@protomaps/basemaps';
+import { HttpPmtilesSource } from './pmtilesSources';
+import type { PmtilesFileInfo, PmtilesRegionId } from './types';
+
+// Regional file metadata from doc 03 sections 4 & 11
+export const PMTILES_REGIONS: Record<PmtilesRegionId, PmtilesFileInfo> = {
+  himalaya: {
+    id: 'himalaya',
+    name: 'Himalaya Regional (HP, UK, J&K)',
+    filename: 'himalaya.pmtiles',
+    url: '/maps/himalaya.pmtiles',
+    bbox: [74, 28.5, 81, 37],
+    minZoom: 7,
+    maxZoom: 12,
+  },
+  northeast: {
+    id: 'northeast',
+    name: 'Northeast India Regional',
+    filename: 'northeast.pmtiles',
+    url: '/maps/northeast.pmtiles',
+    bbox: [87.5, 21.5, 97.5, 29.5],
+    minZoom: 7,
+    maxZoom: 12,
+  },
+  'india-overview': {
+    id: 'india-overview',
+    name: 'India Overview',
+    filename: 'india-overview.pmtiles',
+    url: '/maps/india-overview.pmtiles',
+    bbox: [68, 6, 98, 38],
+    minZoom: 0,
+    maxZoom: 8,
+  },
+};
+
+let protocolInstance: Protocol | null = null;
+const registeredPmtilesSources = new Map<string, PMTiles>();
+
+/**
+ * Register the pmtiles:// protocol once with MapLibre GL.
+ */
+export function registerPmtilesProtocol(): Protocol {
+  if (!protocolInstance) {
+    protocolInstance = new Protocol();
+    maplibregl.addProtocol('pmtiles', protocolInstance.tile);
+  }
+  return protocolInstance;
+}
+
+/**
+ * Get or register a custom PMTiles instance on the global protocol.
+ */
+export function getOrCreatePmtiles(url: string): PMTiles {
+  const protocol = registerPmtilesProtocol();
+  if (!registeredPmtilesSources.has(url)) {
+    const source = new HttpPmtilesSource(url);
+    const instance = new PMTiles(source);
+    protocol.add(instance);
+    registeredPmtilesSources.set(url, instance);
+  }
+  return registeredPmtilesSources.get(url)!;
+}
+
+/**
+ * Choose the appropriate PMTiles file based on center coordinates and zoom level.
+ * Zoom < 7 uses overview. Regional bounding boxes pick regional extracts.
+ */
+export function selectPmtilesFile(centerLng: number, centerLat: number, zoom: number): PmtilesFileInfo {
+  if (zoom < 7) {
+    return PMTILES_REGIONS['india-overview'];
+  }
+
+  // Check Himalaya bounding box [74, 28.5, 81, 37]
+  const [hMinLng, hMinLat, hMaxLng, hMaxLat] = PMTILES_REGIONS.himalaya.bbox;
+  if (centerLng >= hMinLng && centerLng <= hMaxLng && centerLat >= hMinLat && centerLat <= hMaxLat) {
+    return PMTILES_REGIONS.himalaya;
+  }
+
+  // Check Northeast bounding box [87.5, 21.5, 97.5, 29.5]
+  const [neMinLng, neMinLat, neMaxLng, neMaxLat] = PMTILES_REGIONS.northeast.bbox;
+  if (centerLng >= neMinLng && centerLng <= neMaxLng && centerLat >= neMinLat && centerLat <= neMaxLat) {
+    return PMTILES_REGIONS.northeast;
+  }
+
+  // Fallback to overview
+  return PMTILES_REGIONS['india-overview'];
+}
+
+/**
+ * Check if a local PMTiles file exists on the server.
+ */
+export async function checkPmtilesAvailability(url: string): Promise<boolean> {
+  try {
+    const res = await fetch(url, { method: 'HEAD' });
+    return res.ok && res.status !== 404;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Build MapLibre style using Protomaps "light" flavour from local PMTiles.
+ */
+export function buildPmtilesMapStyle(pmtilesUrl: string): StyleSpecification {
+  // Ensure the PMTiles instance is registered with the protocol
+  getOrCreatePmtiles(pmtilesUrl);
+
+  const styleLayers = protomapsLayers('protomaps', namedFlavor('light'));
+
+  return {
+    version: 8,
+    sources: {
+      protomaps: {
+        type: 'vector',
+        url: `pmtiles://${pmtilesUrl}`,
+        attribution: '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap contributors</a>',
+      },
+    },
+    layers: styleLayers as unknown as StyleSpecification['layers'],
+  };
+}
+
+/**
+ * Fallback style when local PMTiles files have not been extracted yet.
+ * Renders a clean light surface so all map features, layers, and markers operate smoothly.
+ */
+export function buildFallbackMapStyle(): StyleSpecification {
+  return {
+    version: 8,
+    sources: {},
+    layers: [
+      {
+        id: 'background',
+        type: 'background',
+        paint: {
+          'background-color': '#F6F8FB', // --surface neutral token
+        },
+      },
+    ],
+  };
+}
