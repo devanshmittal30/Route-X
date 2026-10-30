@@ -13,7 +13,7 @@ export const envSchema = z.object({
     .min(1, 'VITE_ORS_API_KEY is required'),
   VITE_DEMO_MODE: z
     .enum(['true', 'false'])
-    .default('true')
+    .default('false')
     .transform((val) => val === 'true'),
   VITE_MAP_API_KEY: z.string().optional(),
   VITE_MAP_TILES_URL: z.string().optional(),

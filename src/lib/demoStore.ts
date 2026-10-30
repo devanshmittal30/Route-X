@@ -9,14 +9,21 @@ interface DemoState {
 const STORAGE_KEY = 'routex_demo_mode';
 
 export const isDemoConfigured = (): boolean => {
-  return typeof import.meta !== 'undefined' && import.meta.env?.VITE_DEMO_MODE !== undefined
-    ? String(import.meta.env.VITE_DEMO_MODE).toLowerCase() !== 'false'
-    : true;
+  if (typeof import.meta === 'undefined' || !import.meta.env) return false;
+  const envVal = String(import.meta.env.VITE_DEMO_MODE || '').trim().toLowerCase();
+  return envVal === 'true';
 };
 
 const getInitialDemoMode = (): boolean => {
-  // If production environment explicitly disabled demo mode, force false
+  // If production environment explicitly set to false or anything other than true, strictly disable demo mode
   if (!isDemoConfigured()) {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      try {
+        window.localStorage.removeItem(STORAGE_KEY);
+      } catch {
+        // Ignore
+      }
+    }
     return false;
   }
 
