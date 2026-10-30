@@ -195,8 +195,27 @@
    - Points balance immediately reflects deduction.
    - Attempting to redeem the same offer again today shows the friendly error: *"Offer already redeemed today. Limit: 1 redemption per offer per day."*
 
+- **P10 Hazard Layers and Hazard Map Page**:
+  - Implemented `scripts/import-landslides.ts` importing real landslide events from the official NASA Global Landslide Catalog (GLC) for India (bounding box lat 6–38°N, lon 68–98°E), deduping by source + source_event_id using the Supabase service role key.
+  - Successfully imported 2,139 real historical landslide records into the Supabase PostGIS `historical_landslides` table with year breakdown:
+    - 2007: 125 | 2008: 116 | 2009: 92 | 2010: 392 | 2011: 277 | 2012: 118 | 2013: 290 | 2014: 170 | 2015: 350 | 2016: 209
+  - Upgraded Hazard Map page (`src/pages/MapPage.tsx`) with 4 interactive layers:
+    1. Community reports (custom icons, severity/verification colors)
+    2. Historical landslides (hollow triangles `#D97706`)
+    3. Earthquakes last 7 days from USGS (concentric rings sized by magnitude)
+    4. Safe shelter/stay points (stay icons with safety scores)
+  - Added filter bar for community reports: Hazard Type, Severity (1-3), Verification Status (All/Verified/Pending), and Time window (24h/48h/72h/All).
+  - Implemented detail drawers for all map features:
+    - Community Reports: `ReportDetailDrawer` with embedded interactive `VerifyBar`.
+    - Historical Landslides: `HistoricalLandslideDrawer` showing event date, trigger mechanism, location description, casualties, and source credit (*"NASA Global Landslide Catalog"*).
+    - Earthquakes: `EarthquakeDrawer` showing magnitude, focal depth, timestamp, trigger potential explanation, and USGS event link.
+  - Added dynamic spatial clustering whenever total markers exceed 30, maintaining smooth 60 fps panning and cluster expansion on zoom/click.
+  - Enhanced Header (`src/components/layout/Header.tsx`): Demo mode switch persisted in `localStorage` (default from `VITE_DEMO_MODE`); renders a thin warning banner `"Demo mode: test data included and labelled"` when active.
+  - Updated Map Legend (`src/components/map/MapLegend.tsx`) with 5 risk level bands and layer marker symbols (Pin, Hollow Triangle, Epicenter Ring, Shelter).
+  - Verified acceptance criteria: 98/98 Vitest unit tests pass, typecheck clean, lint clean, production build passing.
+
 ## In progress
-- Ready for P10 (Hazard layers and Hazard Map page).
+- Ready for P11 (Stays, SOS, SMS simulation).
 
 ## Questions for the user
 - None. Ready for next prompt.

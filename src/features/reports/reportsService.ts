@@ -470,3 +470,4 @@ export function subscribeToHazardReports(
     supabase.removeChannel(channel);
   };
 }
+

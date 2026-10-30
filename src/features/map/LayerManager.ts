@@ -176,4 +176,16 @@ export class LayerManager implements LayerManagerAPI {
     }
     this.markers.clear();
   }
+
+  getZoom(): number {
+    return this.map.getZoom();
+  }
+
+  onZoom(callback: (zoom: number) => void): () => void {
+    const handler = () => callback(this.map.getZoom());
+    this.map.on('zoomend', handler);
+    return () => {
+      this.map.off('zoomend', handler);
+    };
+  }
 }

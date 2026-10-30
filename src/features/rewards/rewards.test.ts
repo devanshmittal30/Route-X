@@ -251,3 +251,4 @@ describe('Stay Ranking Rule (Doc 03 Section 9)', () => {
     expect(line).toBe('Low Risk (score 18) · 4.2 km away · Stable bedrock, Emergency kit');
   });
 });
+

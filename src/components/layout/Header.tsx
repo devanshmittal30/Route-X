@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { LifeBuoy, User, Menu, X, MessageSquareWarning } from 'lucide-react';
+import { LifeBuoy, User, Menu, X, MessageSquareWarning, Sparkles } from 'lucide-react';
 import { Switch } from '../ui/Switch';
 import { useDemoStore } from '../../lib/demoStore';
 
@@ -48,7 +48,8 @@ export const Header: React.FC<HeaderProps> = ({
   ];
 
   return (
-    <header className="sticky top-0 z-40 h-16 w-full bg-white border-b border-border shadow-sm">
+    <div className="sticky top-0 z-40 w-full">
+      <header className="h-16 w-full bg-white border-b border-border shadow-sm">
       <div className="max-w-[1200px] h-full mx-auto px-4 flex items-center justify-between gap-4">
         {/* Brand Logo with Mountain-Route Glyph */}
         <Link
@@ -211,7 +212,16 @@ export const Header: React.FC<HeaderProps> = ({
           </div>
         </div>
       )}
-    </header>
+      </header>
+
+      {/* Thin Demo Mode Notice Banner (Doc 01 FR-D2 & Doc 04 P10) */}
+      {activeDemoMode && (
+        <div className="w-full bg-amber-50 border-b border-amber-200/80 py-1 px-4 text-center text-[11px] font-medium text-amber-800 flex items-center justify-center gap-1.5 shadow-2xs select-none animate-fadeIn">
+          <Sparkles size={12} className="text-amber-600 shrink-0" />
+          <span>Demo mode: test data included and labelled</span>
+        </div>
+      )}
+    </div>
   );
 };
 

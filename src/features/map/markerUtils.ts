@@ -24,12 +24,74 @@ export function createMarkerElement(options: MarkerOptions): HTMLDivElement {
     icon = 'map-pin',
     color = '#0B3C5D',
     bgSoftColor = '#FFFFFF',
+    shape = 'pin',
+    magnitude,
     isTest = false,
     size = 36,
   } = options;
 
   const container = document.createElement('div');
   container.className = 'routex-map-marker-container group relative cursor-pointer select-none';
+
+  // 1. Hollow Triangle shape (Historical Landslides - Doc 04 P10)
+  if (shape === 'hollow-triangle') {
+    const triSize = Math.max(24, size);
+    container.style.width = `${triSize}px`;
+    container.style.height = `${triSize}px`;
+
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    svg.setAttribute('viewBox', '0 0 24 24');
+    svg.setAttribute('width', `${triSize}`);
+    svg.setAttribute('height', `${triSize}`);
+    svg.setAttribute('class', 'transition-transform duration-150 group-hover:scale-125 drop-shadow-sm');
+    svg.innerHTML = `
+      <polygon points="12 2, 22 21, 2 21" fill="none" stroke="${color}" stroke-width="2.8" stroke-linejoin="round"/>
+      <circle cx="12" cy="14" r="2.2" fill="${color}"/>
+    `;
+
+    container.appendChild(svg);
+    if (options.onClick) {
+      container.addEventListener('click', (e) => {
+        e.stopPropagation();
+        options.onClick?.();
+      });
+    }
+    return container;
+  }
+
+  // 2. Ring shape sized by Magnitude (USGS Earthquakes - Doc 04 P10)
+  if (shape === 'ring') {
+    const mag = magnitude ?? 4.5;
+    // Magnitude 4.5 -> 22px; 5.5 -> 34px; 6.5 -> 48px; 7.5+ -> 60px
+    const ringSize = Math.round(Math.max(22, Math.min(60, 22 + (mag - 4.5) * 14)));
+    container.style.width = `${ringSize}px`;
+    container.style.height = `${ringSize}px`;
+
+    const ring = document.createElement('div');
+    ring.className =
+      'rounded-full flex items-center justify-center transition-transform duration-150 group-hover:scale-115 relative shadow-xs';
+    ring.style.width = `${ringSize}px`;
+    ring.style.height = `${ringSize}px`;
+    ring.style.border = `2.5px solid ${color}`;
+    ring.style.backgroundColor = `${color}18`; // Translucent fill
+
+    // Inner epicenter dot
+    const dot = document.createElement('div');
+    dot.className = 'w-2 h-2 rounded-full';
+    dot.style.backgroundColor = color;
+    ring.appendChild(dot);
+
+    container.appendChild(ring);
+    if (options.onClick) {
+      container.addEventListener('click', (e) => {
+        e.stopPropagation();
+        options.onClick?.();
+      });
+    }
+    return container;
+  }
+
+  // 3. Default Pin Shape
   container.style.width = `${size}px`;
   container.style.height = `${size + 8}px`;
 

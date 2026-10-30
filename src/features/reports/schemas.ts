@@ -88,3 +88,4 @@ export function validatePhotoFile(file: File): { valid: boolean; error?: string 
 
   return { valid: true };
 }
+

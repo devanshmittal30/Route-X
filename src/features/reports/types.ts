@@ -46,3 +46,4 @@ export interface DuplicateCheckResult {
   duplicateReport: HazardReport | null;
   distanceMeters: number;
 }
+

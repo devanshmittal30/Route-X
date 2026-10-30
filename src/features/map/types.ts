@@ -34,6 +34,8 @@ export interface MarkerOptions {
   icon?: string; // lucide icon name e.g. 'shield-check', 'triangle-alert', 'map-pin'
   color?: string; // Hex color from tokens e.g. #15803D
   bgSoftColor?: string; // Soft background hex
+  shape?: 'pin' | 'hollow-triangle' | 'ring';
+  magnitude?: number; // for earthquake ring sizing
   popup?: string | HTMLElement | { title: string; description?: string; badge?: string };
   isTest?: boolean; // diagonal stripe styling
   className?: string;
@@ -69,6 +71,8 @@ export interface LayerManagerAPI {
   addMarker: (options: MarkerOptions) => MarkerHandle;
   clearMarkers: () => void;
   getLayers: () => MapLayerItem[];
+  getZoom: () => number;
+  onZoom?: (callback: (zoom: number) => void) => () => void;
 }
 
 export interface RouteXMapProps {

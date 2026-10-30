@@ -56,3 +56,4 @@ export interface RedeemResult {
   points_spent?: number;
   error?: string;
 }
+

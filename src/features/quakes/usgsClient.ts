@@ -43,13 +43,15 @@ function formatTimeAgo(epoch: number): string {
 }
 
 /**
- * Fetch M4.5+ earthquakes in India bounding box within the past 72 hours.
+ * Fetch M4.5+ earthquakes in India bounding box within the specified time window (default 3 days / 72 hours).
  */
 export async function fetchNearbyEarthquakes(
   centerLat?: number,
-  centerLon?: number
+  centerLon?: number,
+  _radiusKm?: number,
+  days = 3
 ): Promise<EarthquakeSummary> {
-  const startTime = new Date(Date.now() - 72 * 60 * 60 * 1000).toISOString();
+  const startTime = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
 
   const params = new URLSearchParams({
     format: 'geojson',
