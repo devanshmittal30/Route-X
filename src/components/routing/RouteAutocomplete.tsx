@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Loader2, MapPin } from 'lucide-react';
+import { X, Loader2, MapPin, Crosshair } from 'lucide-react';
 import type { GeocodedPlace } from '../../features/routing/types';
 import { geocodePlace } from '../../features/routing/geocoding';
 
@@ -12,6 +12,9 @@ export interface RouteAutocompleteProps {
   icon?: React.ReactNode;
   onPickOnMap?: () => void;
   isPickingOnMap?: boolean;
+  onUseGps?: () => void;
+  isGpsLoading?: boolean;
+  inputRef?: React.RefObject<HTMLInputElement>;
 }
 
 export const RouteAutocomplete: React.FC<RouteAutocompleteProps> = ({
@@ -23,6 +26,9 @@ export const RouteAutocomplete: React.FC<RouteAutocompleteProps> = ({
   icon,
   onPickOnMap,
   isPickingOnMap = false,
+  onUseGps,
+  isGpsLoading = false,
+  inputRef,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [suggestions, setSuggestions] = useState<GeocodedPlace[]>([]);
@@ -69,25 +75,44 @@ export const RouteAutocomplete: React.FC<RouteAutocompleteProps> = ({
 
   return (
     <div ref={containerRef} className="relative w-full">
-      <div className="flex items-center justify-between mb-1">
-        <label className="text-[11px] font-semibold text-text-3 uppercase tracking-wider">
+      <div className="flex items-center justify-between mb-1 gap-2">
+        <label className="text-[11px] font-semibold text-text-3 uppercase tracking-wider shrink-0">
           {label}
         </label>
 
-        {onPickOnMap && (
-          <button
-            type="button"
-            onClick={onPickOnMap}
-            className={`inline-flex items-center gap-1 text-[11px] font-medium transition-colors ${
-              isPickingOnMap
-                ? 'text-risk-high font-bold animate-pulse'
-                : 'text-accent hover:underline'
-            }`}
-          >
-            <MapPin size={11} />
-            <span>{isPickingOnMap ? 'Click map now' : 'Pick on map'}</span>
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {onUseGps && (
+            <button
+              type="button"
+              onClick={onUseGps}
+              disabled={isGpsLoading}
+              title="Use current GPS location"
+              className="inline-flex items-center gap-1 text-[11px] font-semibold text-brand hover:text-brand-dark bg-brand/10 hover:bg-brand/15 px-2 py-0.5 rounded-chip border border-brand/20 transition-all active:scale-95 disabled:opacity-50"
+            >
+              {isGpsLoading ? (
+                <Loader2 size={11} className="animate-spin text-brand" />
+              ) : (
+                <Crosshair size={11} className="text-brand" />
+              )}
+              <span>{isGpsLoading ? 'Locating...' : 'Use GPS'}</span>
+            </button>
+          )}
+
+          {onPickOnMap && (
+            <button
+              type="button"
+              onClick={onPickOnMap}
+              className={`inline-flex items-center gap-1 text-[11px] font-medium transition-colors ${
+                isPickingOnMap
+                  ? 'text-risk-high font-bold animate-pulse'
+                  : 'text-accent hover:underline'
+              }`}
+            >
+              <MapPin size={11} />
+              <span>{isPickingOnMap ? 'Click map now' : 'Pick on map'}</span>
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="relative">
@@ -98,6 +123,7 @@ export const RouteAutocomplete: React.FC<RouteAutocompleteProps> = ({
         )}
 
         <input
+          ref={inputRef}
           type="text"
           value={value}
           onChange={(e) => onChange(e.target.value)}

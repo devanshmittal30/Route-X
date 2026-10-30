@@ -16,10 +16,12 @@ import {
   Check,
   Loader2,
   Clock,
+  WifiOff,
 } from 'lucide-react';
 
 import type { RouteMode, RouteOption, GeocodedPlace, RouteStep } from '../features/routing/types';
 import { geocodePlace } from '../features/routing/geocoding';
+import { reverseGeocodeLocation } from '../features/location/geocodingClient';
 import { fetchOsrmRoutes, formatDistance, formatDuration } from '../features/routing/osrmClient';
 import { RouteAutocomplete } from '../components/routing/RouteAutocomplete';
 import { RouteCard } from '../components/routing/RouteCard';
@@ -34,6 +36,7 @@ import { useAuth } from '../features/auth/AuthContext';
 import { scoreFullRoute } from '../features/risk/dataAdapters';
 import { RISK_LEVEL_BANDS } from '../features/risk/config';
 import type { RouteRiskScore } from '../features/risk/types';
+import type { RouteSnapshotRecord } from '../lib/db';
 import {
   cacheRouteSnapshot,
   getLastCachedRouteSnapshot,
@@ -118,12 +121,188 @@ export const RoutePage: React.FC = () => {
   const [isReRouting, setIsReRouting] = useState<boolean>(false);
   const [reRouteProgress, setReRouteProgress] = useState<string | null>(null);
 
+  // GPS & Destination Input Ref
+  const destinationInputRef = useRef<HTMLInputElement>(null);
+  const [isGpsLoading, setIsGpsLoading] = useState<boolean>(false);
+  const [isOfflineSnapshotActive, setIsOfflineSnapshotActive] = useState<boolean>(false);
+  const [lastOfflineSnapshotAvailable, setLastOfflineSnapshotAvailable] = useState<boolean>(false);
+
   // Map & Markers Ref & State
   const mapApiRef = useRef<LayerManagerAPI | null>(null);
   const [mapApi, setMapApi] = useState<LayerManagerAPI | null>(null);
   const startMarkerRef = useRef<MarkerHandle | null>(null);
   const endMarkerRef = useRef<MarkerHandle | null>(null);
   const hazardMarkersRef = useRef<MarkerHandle[]>([]);
+
+  // Restore cached route snapshot helper
+  const handleRestoreCachedSnapshot = useCallback((cached: RouteSnapshotRecord) => {
+    setIsOfflineSnapshotActive(true);
+    const fromName = cached.fromLabel;
+    const toName = cached.toLabel;
+    setFromText(fromName);
+    setToText(toName);
+
+    const fallbackRoute: RouteOption = {
+      id: cached.id,
+      name: `${cached.fromLabel} to ${cached.toLabel}`,
+      distanceMeters: 244000,
+      durationSeconds: 19800,
+      geometry: cached.geometry,
+      legs: [],
+    };
+    setRoutes([fallbackRoute]);
+    setSelectedRouteId(fallbackRoute.id);
+    setCachedAge(formatCachedAge(cached.cachedAt));
+    setRouteRisks({
+      [fallbackRoute.id]: {
+        score: cached.score,
+        level: cached.level as import('../features/risk/config').RiskLevel,
+        isBlocked: cached.level === 'Blocked',
+        maxSegmentScore: cached.score,
+        meanSegmentScore: cached.score,
+        segments: cached.segmentScores.map((s) => ({
+          sampleIndex: s.segmentIndex,
+          distanceKm: 2.0,
+          segmentGeometry: { type: 'LineString', coordinates: [] },
+          score: s.score,
+          level: s.level as import('../features/risk/config').RiskLevel,
+          isBlocked: s.level === 'Blocked',
+          coordinates: s.coordinates,
+          factors: {
+            rain: cached.riskBreakdown?.factors?.rain ?? 0,
+            terrain: cached.riskBreakdown?.factors?.terrain ?? 0,
+            reports: cached.riskBreakdown?.factors?.reports ?? 0,
+            history: cached.riskBreakdown?.factors?.history ?? 0,
+            soil: cached.riskBreakdown?.factors?.soil ?? 0,
+            seismic: cached.riskBreakdown?.factors?.seismic ?? 0,
+            historyHasNoRecords: false,
+            rawMetrics: {
+              accumRainMm: 0,
+              maxHourlyRainMm: 0,
+              slopeDeg: 12,
+              elevationM: 1500,
+              soilMoistureM3: 0.25,
+              historyNearCount: 0,
+              activeReportsCount: 0,
+              nearbyQuakesCount: 0,
+            },
+          },
+        })),
+        factorBars: [],
+        hazardsOnRoute: (cached.hazards || []).map((h) => ({
+          id: h.id,
+          title: `${h.type} obstacle`,
+          type: h.type as import('../features/reports/types').ReportType,
+          severity: h.severity,
+          distanceKm: h.distanceMeters / 1000,
+          coordinates: [77.1734, 31.1048],
+          isVerified: true,
+          isTest: false,
+        })),
+        summary: cached.riskBreakdown?.summary || 'Cached risk snapshot from last route check.',
+        timestamp: cached.cachedAtFormatted,
+        disclaimer: 'RouteX gives risk estimates from public data and user reports.',
+      },
+    });
+    setRoutingError(null);
+  }, []);
+
+  // Use GPS location handler
+  const handleUseGps = useCallback(() => {
+    if (typeof navigator === 'undefined' || !navigator.geolocation) {
+      window.dispatchEvent(
+        new CustomEvent('routex:toast', {
+          detail: {
+            id: `gps-err-${Date.now()}`,
+            type: 'warning',
+            title: 'GPS Unavailable',
+            message: 'Your browser or device does not support GPS geolocation.',
+          },
+        })
+      );
+      return;
+    }
+
+    setIsGpsLoading(true);
+
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const lat = pos.coords.latitude;
+        const lon = pos.coords.longitude;
+
+        let locality = `GPS (${lat.toFixed(4)}, ${lon.toFixed(4)})`;
+        try {
+          const resolved = await reverseGeocodeLocation(lat, lon);
+          if (resolved) locality = resolved;
+        } catch {
+          // Fallback to coordinates
+        }
+
+        const place: GeocodedPlace = {
+          name: locality.split(',')[0] || 'My Location',
+          displayName: locality,
+          latitude: lat,
+          longitude: lon,
+        };
+
+        setFromPlace(place);
+        setFromText(locality);
+        setIsGpsLoading(false);
+
+        // Fly map to user's GPS position
+        if (mapApiRef.current) {
+          mapApiRef.current.flyTo([lon, lat], 13);
+        }
+
+        // Focus destination box immediately per user requirement
+        setTimeout(() => {
+          destinationInputRef.current?.focus();
+        }, 120);
+
+        window.dispatchEvent(
+          new CustomEvent('routex:toast', {
+            detail: {
+              id: `gps-success-${Date.now()}`,
+              type: 'info',
+              title: 'GPS Location Detected',
+              message: `Origin set to "${locality}". Now enter your destination!`,
+            },
+          })
+        );
+      },
+      (err) => {
+        setIsGpsLoading(false);
+        window.dispatchEvent(
+          new CustomEvent('routex:toast', {
+            detail: {
+              id: `gps-failed-${Date.now()}`,
+              type: 'warning',
+              title: 'GPS Permission Denied',
+              message:
+                err.message || 'Please enable location permissions in your browser or device.',
+            },
+          })
+        );
+      },
+      {
+        enableHighAccuracy: false,
+        timeout: 10000,
+        maximumAge: 120000,
+      }
+    );
+  }, []);
+
+  // Check if a cached route snapshot is available on mount & auto-restore if offline
+  useEffect(() => {
+    getLastCachedRouteSnapshot().then((cached) => {
+      if (cached && cached.geometry) {
+        setLastOfflineSnapshotAvailable(true);
+        if (typeof navigator !== 'undefined' && !navigator.onLine && !searchParams.get('from')) {
+          handleRestoreCachedSnapshot(cached);
+        }
+      }
+    });
+  }, [handleRestoreCachedSnapshot, searchParams]);
 
   // Fetch routes implementation
   const calculateRoute = useCallback(async () => {
@@ -133,6 +312,7 @@ export const RoutePage: React.FC = () => {
     setRoutingError(null);
     setRouteRisks({});
     setCachedAge(null);
+    setIsOfflineSnapshotActive(false);
 
     try {
       const result = await fetchOsrmRoutes(
@@ -147,69 +327,7 @@ export const RoutePage: React.FC = () => {
       // Offline fallback: load cached route snapshot from IndexedDB
       const cached = await getLastCachedRouteSnapshot();
       if (cached && cached.geometry) {
-        const fallbackRoute: RouteOption = {
-          id: cached.id,
-          name: `${cached.fromLabel} to ${cached.toLabel}`,
-          distanceMeters: 244000,
-          durationSeconds: 19800,
-          geometry: cached.geometry,
-          legs: [],
-        };
-        setRoutes([fallbackRoute]);
-        setSelectedRouteId(fallbackRoute.id);
-        setCachedAge(formatCachedAge(cached.cachedAt));
-        setRouteRisks({
-          [fallbackRoute.id]: {
-            score: cached.score,
-            level: cached.level as import('../features/risk/config').RiskLevel,
-            isBlocked: cached.level === 'Blocked',
-            maxSegmentScore: cached.score,
-            meanSegmentScore: cached.score,
-            segments: cached.segmentScores.map((s) => ({
-              sampleIndex: s.segmentIndex,
-              distanceKm: 2.0,
-              segmentGeometry: { type: 'LineString', coordinates: [] },
-              score: s.score,
-              level: s.level as import('../features/risk/config').RiskLevel,
-              isBlocked: s.level === 'Blocked',
-              coordinates: s.coordinates,
-              factors: {
-                rain: cached.riskBreakdown?.factors?.rain ?? 0,
-                terrain: cached.riskBreakdown?.factors?.terrain ?? 0,
-                reports: cached.riskBreakdown?.factors?.reports ?? 0,
-                history: cached.riskBreakdown?.factors?.history ?? 0,
-                soil: cached.riskBreakdown?.factors?.soil ?? 0,
-                seismic: cached.riskBreakdown?.factors?.seismic ?? 0,
-                historyHasNoRecords: false,
-                rawMetrics: {
-                  accumRainMm: 0,
-                  maxHourlyRainMm: 0,
-                  slopeDeg: 12,
-                  elevationM: 1500,
-                  soilMoistureM3: 0.25,
-                  historyNearCount: 0,
-                  activeReportsCount: 0,
-                  nearbyQuakesCount: 0,
-                },
-              },
-            })),
-            factorBars: [],
-            hazardsOnRoute: (cached.hazards || []).map((h) => ({
-              id: h.id,
-              title: `${h.type} obstacle`,
-              type: h.type as import('../features/reports/types').ReportType,
-              severity: h.severity,
-              distanceKm: h.distanceMeters / 1000,
-              coordinates: [77.1734, 31.1048],
-              isVerified: true,
-              isTest: false,
-            })),
-            summary: cached.riskBreakdown?.summary || 'Cached risk snapshot from last route check.',
-            timestamp: cached.cachedAtFormatted,
-            disclaimer: 'RouteX gives risk estimates from public data and user reports.',
-          },
-        });
-        setRoutingError(null);
+        handleRestoreCachedSnapshot(cached);
       } else {
         setRoutingError(
           (err as Error).message || 'Could not find a route between these points.'
@@ -219,7 +337,7 @@ export const RoutePage: React.FC = () => {
     } finally {
       setIsLoadingRoutes(false);
     }
-  }, [fromPlace, toPlace, mode]);
+  }, [fromPlace, toPlace, mode, handleRestoreCachedSnapshot]);
 
   // Load saved route and trigger live re-scoring
   const handleLoadSavedRoute = useCallback(
@@ -834,6 +952,8 @@ export const RoutePage: React.FC = () => {
               icon={<MapPin size={13} className="text-risk-low" />}
               onPickOnMap={() => setPickMode(pickMode === 'from' ? 'none' : 'from')}
               isPickingOnMap={pickMode === 'from'}
+              onUseGps={handleUseGps}
+              isGpsLoading={isGpsLoading}
             />
 
             <div className="flex justify-center -my-1">
@@ -848,6 +968,7 @@ export const RoutePage: React.FC = () => {
             </div>
 
             <RouteAutocomplete
+              inputRef={destinationInputRef}
               label="Destination (To)"
               placeholder="Search destination (e.g. Manali)..."
               value={toText}
@@ -858,6 +979,39 @@ export const RoutePage: React.FC = () => {
               isPickingOnMap={pickMode === 'to'}
             />
           </div>
+
+          {/* Mountain Offline Resilience Banner */}
+          {isOfflineSnapshotActive && (
+            <div className="p-3 bg-brand/5 border border-brand/20 rounded-btn flex items-start gap-2.5 text-xs animate-fadeIn">
+              <WifiOff className="w-4 h-4 text-brand shrink-0 mt-0.5" />
+              <div className="flex-1 space-y-1">
+                <div className="font-semibold text-brand flex items-center justify-between">
+                  <span>Offline Mountain Route Active</span>
+                  {cachedAge && <span className="font-mono text-[10px] text-text-3">{cachedAge}</span>}
+                </div>
+                <p className="text-text-2 text-[11px] leading-relaxed">
+                  Route geometry, risk breakdown, safe stays, and emergency contacts are running from local offline cache.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Restore Last Offline Route button if network disconnected or available */}
+          {!isOfflineSnapshotActive && lastOfflineSnapshotAvailable && (
+            <button
+              type="button"
+              onClick={async () => {
+                const cached = await getLastCachedRouteSnapshot();
+                if (cached) {
+                  handleRestoreCachedSnapshot(cached);
+                }
+              }}
+              className="w-full py-1.5 px-2 bg-surface hover:bg-brand-soft text-brand border border-dashed border-brand/30 rounded-btn text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
+            >
+              <RotateCcw size={12} />
+              <span>Restore Last Offline Mountain Route</span>
+            </button>
+          )}
 
           {/* Departure Info Banner */}
           <div className="flex items-center justify-between text-[11px] text-text-3 font-mono bg-surface p-2 rounded-btn border border-border">
