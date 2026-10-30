@@ -72,3 +72,4 @@ export const AppShell: React.FC<AppShellProps> = ({ children, hideFooter = false
     </div>
   );
 };
+
