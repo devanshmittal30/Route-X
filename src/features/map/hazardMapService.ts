@@ -4,6 +4,7 @@ import type { EarthquakeEvent } from '../quakes/types';
 import { fetchRankedSponsoredStays } from '../rewards/rewardsService';
 import type { StayCandidate } from '../rewards/ranking';
 import { parseCoordinates } from '../risk/dataAdapters';
+import { fetchNearbyStays } from '../stays/staysService';
 
 export interface HistoricalLandslideEvent {
   id: number;
@@ -66,8 +67,15 @@ export async function fetchMapStays(
   center?: [number, number]
 ): Promise<StayCandidate[]> {
   try {
+    if (center) {
+      const res = await fetchNearbyStays(center[1], center[0], 25, true);
+      if (res.stays && res.stays.length > 0) {
+        return res.stays;
+      }
+    }
     return await fetchRankedSponsoredStays(center);
   } catch {
     return [];
   }
 }
+

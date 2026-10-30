@@ -13,6 +13,7 @@ export interface StayCandidate {
   isSponsored: boolean;
   distanceKm?: number;
   amenityTags?: string[];
+  whyThisStay?: string;
 }
 
 /**
@@ -52,8 +53,10 @@ export function rankStays<T extends StayCandidate>(
     return { ...stay, distanceKm };
   });
 
-  // 2. Hide Severe locations per specification
-  const filtered = withDistance.filter((stay) => stay.riskLevel !== 'Severe');
+  // 2. Hide Severe and Blocked locations per specification
+  const filtered = withDistance.filter(
+    (stay) => stay.riskLevel !== 'Severe' && stay.riskLevel !== 'Blocked'
+  );
 
   // 3. Sort strictly by:
   //    (a) safety level (Low -> Moderate -> High)

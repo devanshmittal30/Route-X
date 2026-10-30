@@ -214,8 +214,45 @@
   - Updated Map Legend (`src/components/map/MapLegend.tsx`) with 5 risk level bands and layer marker symbols (Pin, Hollow Triangle, Epicenter Ring, Shelter).
   - Verified acceptance criteria: 98/98 Vitest unit tests pass, typecheck clean, lint clean, production build passing.
 
+- **P11 Stays, SOS, and SMS Simulation**:
+  - Implemented `public/offline-guide.json` with conservative mountain survival scenarios (`trapped_landslide`, `road_blocked`, `injured`, `lost_trail`, `flood_water`, `earthquake`, `heavy_rain`, `no_signal`, `night_stop`), step-by-step guidance, "When to call 112" triggers, safe actions checklist, and top-level notice `_comment: "needs human review before production deployment"`.
+  - Implemented Dexie database layer in `src/lib/db.ts` with `staysCache` (24-hour persistent storage) and `offlineQueue` (`type: 'sos' | 'report' | 'vote' | 'checkin'`).
+  - Built Stays feature in `src/features/stays/`:
+    - Overpass API client (`https://overpass-api.de/api/interpreter` with mirror fallback `https://overpass.private.coffee/api/interpreter`) querying `tourism=hotel|guest_house|hostel|chalet` and `amenity=shelter|hospital|clinic` within configurable radius (default 15 km).
+    - Single-point risk engine scoring (`scoreSingleLocation`) evaluating slope stability, weather, terrain, and hazards, capped to the nearest 15 candidates.
+    - Caching for 24 hours in Dexie and memory.
+    - Ranking strictly per Doc 03 Section 9: Severe and Blocked zones hidden; sorted by safety level first (Low before Moderate before High); sponsored demo partner first within the same level; then distance. **Guaranteed: no sponsored stay ever appears above a safer non-sponsored stay.**
+    - Transparent "Why this stay" explanation line generated strictly from real fields.
+    - Attribution prominently displayed: `"Data © OpenStreetMap contributors, ODbL 1.0"`.
+  - Built Stays page (`src/pages/StaysPage.tsx`):
+    - Location search via `LocationPicker` and device GPS geolocation.
+    - Radius selector (5 km, 15 km, 30 km).
+    - "Safe only" filter switch (default: ON, showing Low and Moderate risk only).
+    - Category filter chips (All, Hotels, Guest Houses, Hostels, Shelters, Hospitals/Clinics).
+    - View mode switcher: List View (cards with risk badges, distance, directions) and Map View (interactive `RouteXMap` with custom colored stay pins and feature popups).
+  - Built SOS Service & Dispatch in `src/features/sos/`:
+    - `buildSosMessage`: exact message format `"RouteX SOS: <name> needs help. Condition: <condition>. Location: <lat,lng> <maps link>. Time: <time>."`
+    - `sendSosEvent`: inserts row into Supabase `sos_events` with PostGIS point when online; automatically queues into Dexie `offlineQueue` when offline.
+    - Emergency helplines: `112` (National) and `1078` (NDMA) with `// TODO: verify numbers before demo` comment.
+    - Emergency contacts lookup with fallback demo contacts.
+  - Built `SmsSimulationModal` (`src/components/sos/SmsSimulationModal.tsx`):
+    - Realistic phone bubble display showing exact formatted distress message.
+    - Recipient tags from user's emergency contacts.
+    - Clear `"Simulated: not actually sent"` banner with demo badge.
+    - Quick actions to dial 112 and verify coordinates on Google Maps.
+  - Built full Emergency SOS page (`src/pages/SosPage.tsx`):
+    - High-contrast red emergency header.
+    - 6 interactive condition chips updating scenario guidance in real time.
+    - Large-text offline instruction cards from `offline-guide.json`.
+    - Real-time location block showing coordinates, accuracy, and live/cached status.
+    - Safer options nearby list (nearest verified stays/shelters sorted by safety and distance).
+    - Prominent "Send SOS & Dispatch SMS" button with offline queuing and simulation modal.
+  - Updated Hazard Map stays layer (`src/features/map/hazardMapService.ts`) to fetch real OSM stays around viewport.
+  - Added unit test suites `src/features/stays/stays.test.ts` (5 tests) and `src/features/sos/sos.test.ts` (3 tests).
+  - All 106 tests passing across 9 test files (`npm test`); `npm run typecheck`, `npm run lint`, and `npm run build` all pass with 0 errors.
+
 ## In progress
-- Ready for P11 (Stays, SOS, SMS simulation).
+- Ready for P12 (Trek mode & Check-in) or next task.
 
 ## Questions for the user
 - None. Ready for next prompt.

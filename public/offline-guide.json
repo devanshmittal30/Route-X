@@ -1,0 +1,166 @@
+{
+  "_comment": "needs human review before production deployment. Conservative emergency procedures for Himalayan and Northeast terrain.",
+  "version": "1.0.0",
+  "scenarios": [
+    {
+      "id": "trapped_landslide",
+      "title": "Trapped by Landslide",
+      "summary": "Cut off by active slope failure or debris flow across mountain corridor.",
+      "steps": [
+        "Move away from the slide path immediately to stable bedrock ground or solid ridges.",
+        "Watch uphill for secondary rockfalls, rolling boulders, and uprooted trees; never cross fresh active debris.",
+        "If inside a vehicle, unbuckle and prepare to exit if safe solid ground is accessible; otherwise brace low against small stones.",
+        "Stay visible: deploy bright clothing, emergency whistle (3 sharp blasts), or flashing headlamp.",
+        "Conserve phone battery: switch to Low Power mode, disable background apps, and keep GPS on."
+      ],
+      "whenToCall112": "Call 112 immediately if someone is buried, trapped in a vehicle, or debris flow is advancing toward your shelter point.",
+      "safeActions": [
+        "Seek higher bedrock ground immediately",
+        "Never attempt to drive across active slide debris",
+        "Signal with whistle (3 blasts per minute)"
+      ]
+    },
+    {
+      "id": "road_blocked",
+      "title": "Road Blocked",
+      "summary": "Roadway obstructed by boulder, tree fall, or earth slip ahead.",
+      "steps": [
+        "Stop at least 50 meters before the hazard zone; park away from steep roadside cliff cuttings.",
+        "Turn on hazard blinkers to alert vehicles approaching behind you around blind mountain curves.",
+        "Do not attempt to drive through debris or walk across loose uncompacted scree.",
+        "Check RouteX for alternative routes or turn back to the nearest safe inhabited settlement.",
+        "Report the obstruction on RouteX when signal is available so other travelers avoid this segment."
+      ],
+      "whenToCall112": "Call 112 or local traffic helpline if the road collapse isolates vehicles with vulnerable passengers or medical needs.",
+      "safeActions": [
+        "Turn around to the nearest safe town or shelter",
+        "Avoid parking beneath sheer rock overhangs",
+        "Log a community hazard report"
+      ]
+    },
+    {
+      "id": "injured",
+      "title": "Injured / Medical Emergency",
+      "summary": "Physical injury, hypothermia, fracture, or altitude illness on mountain route.",
+      "steps": [
+        "Halt all movement and evaluate airway, breathing, and severe external bleeding.",
+        "Control bleeding with direct firm pressure using clean dressing; wrap in emergency thermal blanket.",
+        "Do not move a person with suspected spine, neck, or pelvic trauma unless in immediate rockfall danger.",
+        "Record exact GPS coordinates, altitude, and timestamps of symptom progression.",
+        "Transmit RouteX SOS emergency dispatch with coordinates and condition summary."
+      ],
+      "whenToCall112": "Call 112 immediately for any head trauma, compound fracture, uncontrollable bleeding, or severe hypothermia.",
+      "safeActions": [
+        "Apply emergency first aid and direct pressure",
+        "Protect against cold ground using sleeping pad or dry packs",
+        "Broadcast SOS coordinates to emergency contacts"
+      ]
+    },
+    {
+      "id": "lost_trail",
+      "title": "Lost on Trail",
+      "summary": "Disoriented, fogged in, or separated from marked mountain trail.",
+      "steps": [
+        "S.T.O.P: Stop, Think, Observe, Plan. Do not panic or rush blindly through rough terrain.",
+        "Check compass orientation and last confirmed trail cairn before moving downhill into unknown gullies.",
+        "Never descend into steep river gorges or waterfalls where vertical rock walls trap hikers.",
+        "Stay on open ridge lines or distinct clearings where search visibility and cellular signal are highest.",
+        "If darkness approaches, bivvy in place against wind; do not attempt nocturnal descent."
+      ],
+      "whenToCall112": "Call 112 or NDMA 1078 if darkness is falling, sub-zero temperatures threaten, or you lack overnight bivvy gear.",
+      "safeActions": [
+        "Stay high on visible ridgelines",
+        "Avoid wet stream beds and slippery ravines",
+        "Signal 3 loud whistle blasts periodically"
+      ]
+    },
+    {
+      "id": "flood_water",
+      "title": "Flood / Rising Water",
+      "summary": "Flash flood, sudden glacial outburst, or bursting stream across roadway.",
+      "steps": [
+        "Climb to high ground immediately away from riverbeds, seasonal nullahs, and low culverts.",
+        "Never attempt to drive or walk through flowing mountain water deeper than ankle height.",
+        "Be alert for flash flood surges upstream caused by temporary landslide dam breaches.",
+        "Move upstream and away from vertical embankments that can undercut and collapse into the torrent.",
+        "Wait out the crest on solid high ground; mountain runoff surges typically recede after storm peak."
+      ],
+      "whenToCall112": "Call 112 if water levels are rising around stranded vehicles or occupants are cut off from high ground.",
+      "safeActions": [
+        "Evacuate perpendicular to stream flow up hillside",
+        "Do not drive into submerged roadway dips",
+        "Stay clear of undercut river banks"
+      ]
+    },
+    {
+      "id": "earthquake",
+      "title": "Earthquake",
+      "summary": "Ground shaking, structural tremors, and subsequent seismic rockfalls.",
+      "steps": [
+        "Drop, Cover, and Hold On. Protect head and neck with your arms or heavy pack.",
+        "If outdoors in mountain terrain, move clear of steep cliffs, loose scree fields, and high power lines.",
+        "Anticipate secondary landslides and aftershocks within the next 24 to 72 hours.",
+        "Turn off vehicle engine and park away from bridges, overpasses, and loose retaining walls.",
+        "Inspect travel companions for injuries before moving carefully to open flat clearings."
+      ],
+      "whenToCall112": "Call 112 or NDMA 1078 if structural collapse, road severance, or trapped persons require immediate rescue teams.",
+      "safeActions": [
+        "Protect head and vital organs",
+        "Anticipate aftershocks on unstable slopes",
+        "Assemble in open meadows or wide clearings"
+      ]
+    },
+    {
+      "id": "heavy_rain",
+      "title": "Heavy Rain on Mountain Road",
+      "summary": "Torrential downpours saturating slope layers and reducing tire traction.",
+      "steps": [
+        "Reduce speed immediately to 20-30 km/h; maintain triple standard braking distance.",
+        "Turn on low-beam headlights and defroster; watch for muddy runoff chutes washing across turns.",
+        "Pull into the next designated safe haven, fuel station, or hotel until rainfall rates decline.",
+        "Do not stop in known landslide zones or right next to steep excavated earth cuts."
+      ],
+      "whenToCall112": "Call 112 if visibility drops to zero with stranded traffic or mud deposits blocking both lanes.",
+      "safeActions": [
+        "Drive at low speeds with lights on",
+        "Seek verified shelter in nearest town",
+        "Avoid stopping under unstable rock cuts"
+      ]
+    },
+    {
+      "id": "no_signal",
+      "title": "No Cellular Signal",
+      "summary": "Total cellular dead zone in deep Himalayan valley or high pass.",
+      "steps": [
+        "Rely on RouteX downloaded offline PMTiles maps and cached route directions.",
+        "Move towards higher ridge points or roadside ITBP/BRO military outposts for emergency radio relay.",
+        "Leave visible travel markers or notes on parked vehicle stating your destination and departure time.",
+        "Conserve battery by toggling Airplane Mode while keeping GPS location services active."
+      ],
+      "whenToCall112": "When network returns or at nearest police checkpost (ITBP/BRO), report your status and time of passage.",
+      "safeActions": [
+        "Use downloaded offline maps",
+        "Move to higher terrain for line-of-sight signal",
+        "Save battery with Airplane Mode"
+      ]
+    },
+    {
+      "id": "night_stop",
+      "title": "Stranded at Night",
+      "summary": "Nightfall in mountain sector with low temperatures and limited road visibility.",
+      "steps": [
+        "Pull off the main roadway into a wide turnout, verified hotel parking, or well-lit petrol pump.",
+        "Lock vehicle doors, crack one window 5 mm for ventilation if running heater periodically.",
+        "Never run engine continuously while sleeping due to deadly carbon monoxide accumulation.",
+        "Use layers, sleeping bags, and thermal emergency blankets to preserve body core heat.",
+        "Wait for morning daylight before attempting unfamiliar mountain navigation."
+      ],
+      "whenToCall112": "Call 112 if freezing temperatures pose imminent hypothermia risk or vehicle battery is depleted.",
+      "safeActions": [
+        "Shelter in vehicle or registered stay",
+        "Ventilate if operating vehicle engine",
+        "Wait for daylight before driving"
+      ]
+    }
+  ]
+}
