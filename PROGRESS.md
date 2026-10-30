@@ -251,8 +251,38 @@
   - Added unit test suites `src/features/stays/stays.test.ts` (5 tests) and `src/features/sos/sos.test.ts` (3 tests).
   - All 106 tests passing across 9 test files (`npm test`); `npm run typecheck`, `npm run lint`, and `npm run build` all pass with 0 errors.
 
+- **P12 Safety Chat (Online AI + Offline Guide)**:
+  - Built Supabase Edge Function `supabase/functions/gemini-chat/index.ts`:
+    - Strict input validation (message <= 600 chars, history last 6, context object).
+    - In-memory rate limiting (10 requests/min per IP / client).
+    - CORS limited to localhost origins (`http://localhost:5173`, `http://localhost:4173`).
+    - Connects to Google Gemini REST API using `GEMINI_API_KEY` and `GEMINI_MODEL` environment secrets.
+    - Safety-first system prompt strictly implementing Doc 03 Section 10 rules.
+    - 15-second AbortController timeout and secure error responses.
+    - CLI commands documented for setting secrets and deploying (`npx supabase secrets set ...`, `npx supabase functions deploy gemini-chat`).
+  - Built `buildContextPacket` (`src/features/chat/contextPacket.ts`):
+    - Privacy-first context serialization: coarse coordinates rounded to 2 decimals (~1.1 km precision).
+    - Zero personal identifiable information (no names, phone numbers, or exact addresses).
+    - Attaches mode, current route risk level/score, up to 5 verified hazards, 72h weather accumulation/alerts, and up to 5 nearest safe stays with sponsored flags.
+  - Built Offline Guide Engine (`src/features/chat/offlineGuideEngine.ts`):
+    - Keyword-scored intent matching over `public/offline-guide.json` with exact phrases and weighted tokens.
+    - Accurately matches "landslide ahead", "I am stuck", "where can I stay", "lost on trail", "flash flood", and "injured".
+    - Follows strict 4-block structured order: **1. Do now**, **2. Call** (112 / 1078), **3. What RouteX data shows**, **4. Safe stays** (safer first, sponsored labelled `Sponsored (Demo)`).
+    - Interactive decision-tree follow-up prompt chips.
+  - Built Client Chat Service (`src/features/chat/chatService.ts`):
+    - Checks `navigator.onLine` and falls back automatically to the offline guide engine when offline or when the edge function is unreachable.
+  - Built Frontend Safety Chat Drawer (`src/components/chat/SafetyChatDrawer.tsx`):
+    - Global slide-out drawer accessible from floating action button on all pages.
+    - Status chip: "Online AI" (green dot) or "Offline Guide" (amber dot).
+    - Quick prompt chips ("Is my route safe?", "Landslide ahead", "I am stuck", "Where can I stay?").
+    - Structured message bubbles with numbered action steps, one-touch emergency call button, RouteX risk indicators, and stay cards.
+    - Typing indicator, 600-character input counter, and disclaimer footer.
+  - Integrated into `src/components/layout/AppShell.tsx`.
+  - Added 7 unit tests in `src/features/chat/chat.test.ts` verifying keyword intent matching, privacy compliance, and 4-block response ordering.
+  - All 113 tests passing across 10 test files (`npm test`); `npm run typecheck`, `npm run lint`, and `npm run build` all pass with 0 errors.
+
 ## In progress
-- Ready for P12 (Trek mode & Check-in) or next task.
+- Ready for P13 (Offline architecture & PWA) or next task.
 
 ## Questions for the user
 - None. Ready for next prompt.

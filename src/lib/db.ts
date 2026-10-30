@@ -43,3 +43,4 @@ export class RouteXDatabase extends Dexie {
 }
 
 export const db = new RouteXDatabase();
+

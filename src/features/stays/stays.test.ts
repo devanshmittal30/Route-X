@@ -212,3 +212,4 @@ describe('Stays Feature - Overpass Parsing & Ranking', () => {
     expect(whyLine).toContain('Bedrock base, First aid');
   });
 });
+

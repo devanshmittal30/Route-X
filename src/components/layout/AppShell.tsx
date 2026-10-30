@@ -4,8 +4,7 @@ import { Footer } from './Footer';
 import { MobileTabBar } from './MobileTabBar';
 import { MessageSquare, LifeBuoy } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import { Drawer } from '../ui/Drawer';
-import { EmptyState } from '../ui/EmptyState';
+import { SafetyChatDrawer } from '../chat/SafetyChatDrawer';
 
 export interface AppShellProps {
   children: React.ReactNode;
@@ -24,22 +23,7 @@ export const AppShell: React.FC<AppShellProps> = ({ children, hideFooter = false
       <main className="flex-1 flex flex-col pb-16 lg:pb-0">{children}</main>
 
       {/* Global Safety Chat Drawer */}
-      <Drawer
-        isOpen={chatOpen}
-        onClose={() => setChatOpen(false)}
-        title="RouteX Safety Assistant"
-      >
-        <div className="space-y-4">
-          <div className="p-3 bg-surface rounded-btn border border-border text-small text-text-2">
-            Safety-first assistant for mountain roads and treks in India.
-          </div>
-          <EmptyState
-            icon={MessageSquare}
-            title="Chat Assistant"
-            description="AI assistant (Gemini online / rule-based offline) will be connected in Phase 6."
-          />
-        </div>
-      </Drawer>
+      <SafetyChatDrawer isOpen={chatOpen} onClose={() => setChatOpen(false)} />
 
       {/* Floating Action Buttons */}
       <div className="fixed bottom-20 lg:bottom-6 right-4 z-40 flex flex-col items-end gap-2.5">

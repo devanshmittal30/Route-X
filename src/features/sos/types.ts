@@ -40,3 +40,4 @@ export interface SosDispatchResult {
   eventId?: string;
   error?: string;
 }
+

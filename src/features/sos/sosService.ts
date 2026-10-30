@@ -44,6 +44,22 @@ let cachedGuide: OfflineGuideData | null = null;
  */
 export async function fetchOfflineGuide(): Promise<OfflineGuideData> {
   if (cachedGuide) return cachedGuide;
+
+  // In Vitest / Node test environment, read local JSON without making network call
+  if (
+    typeof window === 'undefined' ||
+    (typeof process !== 'undefined' && process.env.NODE_ENV === 'test') ||
+    (typeof import.meta !== 'undefined' && import.meta.env?.MODE === 'test')
+  ) {
+    try {
+      const data = await import('../../../public/offline-guide.json');
+      cachedGuide = (data.default || data) as unknown as OfflineGuideData;
+      return cachedGuide;
+    } catch {
+      // Fall through to fetch or fallback
+    }
+  }
+
   try {
     const res = await fetch('/offline-guide.json');
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
