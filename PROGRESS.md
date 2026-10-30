@@ -281,8 +281,76 @@
   - Added 7 unit tests in `src/features/chat/chat.test.ts` verifying keyword intent matching, privacy compliance, and 4-block response ordering.
   - All 113 tests passing across 10 test files (`npm test`); `npm run typecheck`, `npm run lint`, and `npm run build` all pass with 0 errors.
 
+- **P13 Offline: PWA, Offline Maps, and Offline Queue**:
+  - Configured `vite-plugin-pwa` in `vite.config.ts`:
+    - Web app manifest with brand colors (`#0B3C5D` navy, `#00A86B` green), standalone display, and mountain navigation categories.
+    - Generated brand icons in `public/`: `pwa-192x192.png`, `pwa-512x512.png`, `apple-touch-icon.png`, `favicon.ico`, `favicon.svg`.
+    - Workbox service worker precaching (47 entries, 2269.98 KiB) including HTML, CSS, fonts, icons, offline guide JSON, and JS bundles.
+    - StaleWhileRevalidate runtime caching for external mountain APIs: Open-Meteo forecasts/elevations/geocoding (1h cache), USGS earthquakes (1h cache), OSRM routing (6h cache), Overpass stays (24h cache).
+  - Implemented Dexie database layer in `src/lib/db.ts` (version 2 schema):
+    - `tiles`: `id` (region id), `blob`, `size`, `downloadedAt`.
+    - `routeSnapshots`: `id` (auto-increment), `fromName`, `toName`, `mode`, `geometry`, `segmentScores`, `riskBreakdown`, `hazards`, `safeStays`, `emergencyContacts`, `lastKnownLocation`, `cachedAt`.
+    - `staysCache`: `id`, `lat`, `lng`, `radiusKm`, `stays`, `cachedAt`.
+    - `guide`: `id`, `title`, `category`, `content`, `cachedAt`.
+    - `queue`: `id` (auto-increment), `type` (`'report' | 'vote' | 'sos' | 'checkin'`), `payload`, `createdAt`, `tries`, `status` (`'pending' | 'processing' | 'failed'`).
+    - `meta`: `key`, `value`, `updatedAt`.
+    - Backward-compatible table aliases: `offlineQueue` and `offlineMaps`.
+  - Implemented PMTiles Blob integration in `src/features/map/pmtilesManager.ts`:
+    - Seamlessly connects `BlobPmtilesSource` with Dexie `tiles` storage table.
+    - When offline or when a region is downloaded locally, vector tiles render directly from Dexie memory/indexedDB blobs via MapLibre GL.
+  - Built Offline Maps Page (`src/pages/OfflinePage.tsx`):
+    - Regional cards for `himalaya` (68 MB), `northeast` (45 MB), and `india-overview` (12 MB).
+    - Simulated/real stream download with progress bar indicator and storage calculation.
+    - Download, Delete, and Storage Used tally in human-readable megabytes.
+    - "What works offline" checklist and pending queued actions inspection table.
+  - Built Route Snapshot Caching (`src/features/offline/routeSnapshotService.ts`):
+    - Automatically snapshots route geometry, segment scores, factor breakdown, hazards, safe stays, emergency contacts, and last known location on every route calculation.
+    - Fallback loader in `RoutePage.tsx`: retrieves the most recent route snapshot when offline with a clear `"Offline Route Snapshot · Cached X ago"` alert.
+    - Formats relative age cleanly (`"Cached 2m ago"`, `"Cached 2h ago"`, `"Cached 3d ago"`) per Doc 01 Section 7.
+  - Built Offline Queue Service (`src/features/offline/queueService.ts`):
+    - Queues actions (`report`, `vote`, `sos`, `checkin`) when offline or on network failure.
+    - Auto-syncs on `window.online` event with exponential backoff and up to 3 retries.
+    - Conflicts resolved via server-wins strategy.
+    - Integrated with `reportsService.ts` (create report, vote) and `sosService.ts` (emergency dispatch).
+  - Built Global Offline Banner (`src/components/layout/AppShell.tsx`):
+    - Persistent amber notification strip shown when `!navigator.onLine`.
+    - Communicates offline mode, cached vector tile rendering, offline guide readiness, and live count of queued pending changes.
+  - Added unit test suite in `src/features/offline/offline.test.ts` (5 tests):
+    - Dexie schema verification and table aliasing.
+    - Offline queueing and pending count tracking.
+    - Relative age formatting.
+    - Route snapshot persistence and retrieval.
+    - PMTiles Blob byte range reading via `BlobPmtilesSource`.
+  - Acceptance verification: 118/118 tests pass across 11 test files (`npm test`), `npm run typecheck`, `npm run lint`, and `npm run build` pass with 0 errors.
+
+### P13 Manual Offline Verification Script
+Follow these steps to manually verify the complete offline experience:
+1. **Initial Online Session**:
+   - Start the app with `npm run preview` or `npm run dev` in your browser.
+   - Navigate to `/route`, search **Shimla** to **Manali**, and calculate the route.
+   - Verify the route line, segment hazard colors, and risk explanation panel appear.
+   - Navigate to `/offline`, click **Download** on the **Himalaya Regional** map pack, and watch the progress bar reach 100%. Verify the badge updates to `"Downloaded (Offline Ready)"`.
+2. **Go Offline**:
+   - Open Chrome DevTools $\rightarrow$ Network tab $\rightarrow$ select **Offline** (or disconnect your machine's Wi-Fi / Airplane Mode).
+   - Reload the page (`Cmd + Shift + R`).
+3. **Verify App Shell & Service Worker**:
+   - The app opens immediately without connection error (served from Workbox precache).
+   - An amber offline banner appears at the top: *"You are offline · Showing cached maps & data. Pending changes will sync automatically when reconnected."*
+   - In the header, the connection status dot displays orange/offline.
+4. **Verify Offline Map & Route**:
+   - The map loads vector tiles directly from Dexie IndexedDB (`BlobPmtilesSource`).
+   - Navigate to `/route`: the cached Shimla–Manali route appears with the banner: *"Offline Route Snapshot · Cached just now"*.
+5. **Verify Offline Safety Chat & SOS**:
+   - Open the Safety Chat drawer: status chip displays `"Offline Guide"`.
+   - Ask *"landslide ahead"*: receives structured 4-block offline guidance from `public/offline-guide.json`.
+   - Navigate to `/sos`, select a condition, and click **Send SOS & Dispatch SMS**: the SOS event is saved to the offline queue, and the simulation modal displays the formatted distress SMS.
+6. **Verify Offline Queue & Resync**:
+   - Navigate to `/offline` $\rightarrow$ Queued Actions: observe 1 pending SOS action.
+   - Reconnect to the network (DevTools Network $\rightarrow$ **No throttling**, or re-enable Wi-Fi).
+   - The global offline banner disappears, the queue automatically flushes to Supabase, and the pending count drops to 0.
+
 ## In progress
-- Ready for P13 (Offline architecture & PWA) or next task.
+- Ready for next prompt / P14.
 
 ## Questions for the user
 - None. Ready for next prompt.

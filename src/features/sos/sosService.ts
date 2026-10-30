@@ -1,5 +1,5 @@
 import { supabase } from '../../lib/supabase';
-import { db } from '../../lib/db';
+import { enqueueAction } from '../offline/queueService';
 import type {
   EmergencyContact,
   OfflineGuideData,
@@ -270,21 +270,15 @@ export async function sendSosEvent(
     }
   }
 
-  // Save to Dexie offline queue
+  // Save to Dexie offline queue (P13)
   try {
-    await db.offlineQueue.add({
-      type: 'sos',
-      payload: {
-        userId: userId || null,
-        conditionId,
-        condition: conditionTitle,
-        message,
-        lat,
-        lon,
-      },
-      createdAt: now.toISOString(),
-      tries: 0,
-      status: 'pending',
+    await enqueueAction('sos', {
+      userId: userId || null,
+      conditionId,
+      condition: conditionTitle,
+      message,
+      lat,
+      lon,
     });
   } catch {
     // Non-fatal

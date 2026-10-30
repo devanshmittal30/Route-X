@@ -2,7 +2,8 @@ import maplibregl from 'maplibre-gl';
 import type { StyleSpecification } from 'maplibre-gl';
 import { Protocol, PMTiles } from 'pmtiles';
 import { layers as protomapsLayers, namedFlavor } from '@protomaps/basemaps';
-import { HttpPmtilesSource } from './pmtilesSources';
+import { HttpPmtilesSource, BlobPmtilesSource } from './pmtilesSources';
+import { db } from '../../lib/db';
 import type { PmtilesFileInfo, PmtilesRegionId } from './types';
 
 // Regional file metadata from doc 03 sections 4 & 11
@@ -62,6 +63,41 @@ export function getOrCreatePmtiles(url: string): PMTiles {
     registeredPmtilesSources.set(url, instance);
   }
   return registeredPmtilesSources.get(url)!;
+}
+
+/**
+ * Registers a Blob-backed PMTiles instance on the global protocol.
+ */
+export function registerBlobPmtiles(url: string, blob: Blob): PMTiles {
+  const protocol = registerPmtilesProtocol();
+  const source = new BlobPmtilesSource(blob, url);
+  const instance = new PMTiles(source);
+  protocol.add(instance);
+  registeredPmtilesSources.set(url, instance);
+  return instance;
+}
+
+/**
+ * Initializes PMTiles source from Dexie if available, otherwise HTTP.
+ */
+export async function initializePmtilesSource(url: string, regionId?: string): Promise<PMTiles> {
+  const protocol = registerPmtilesProtocol();
+  if (regionId) {
+    try {
+      const record = await db.tiles.get(regionId);
+      if (record && record.blob) {
+        const source = new BlobPmtilesSource(record.blob, url);
+        const instance = new PMTiles(source);
+        protocol.add(instance);
+        registeredPmtilesSources.set(url, instance);
+        return instance;
+      }
+    } catch {
+      // Fall through to HTTP
+    }
+  }
+
+  return getOrCreatePmtiles(url);
 }
 
 /**

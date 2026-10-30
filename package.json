@@ -40,6 +40,7 @@
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-react-hooks": "^5.0.0",
     "eslint-plugin-react-refresh": "^0.4.14",
+    "fake-indexeddb": "^6.2.7",
     "happy-dom": "^15.7.4",
     "pg": "^8.23.1",
     "postcss": "^8.4.47",

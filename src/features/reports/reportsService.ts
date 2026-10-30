@@ -1,5 +1,6 @@
 import * as turf from '@turf/turf';
 import { supabase } from '../../lib/supabase';
+import { enqueueAction } from '../offline/queueService';
 import type {
   ReportType,
   HazardReport,
@@ -214,16 +215,13 @@ export async function createHazardReport(
       expires_at: expiresAt,
     };
 
-    // Store in offline queue placeholder (Dexie integration in P13)
+    // Store in Dexie offline queue (P13)
     try {
-      const queueKey = 'routex_offline_reports_queue';
-      const existingQueue = JSON.parse(localStorage.getItem(queueKey) || '[]');
-      existingQueue.push({
-        input: validated,
+      await enqueueAction('report', {
+        ...validated,
         userId,
-        timestamp: new Date().toISOString(),
+        expires_at: expiresAt,
       });
-      localStorage.setItem(queueKey, JSON.stringify(existingQueue));
     } catch {
       // ignore
     }
@@ -407,7 +405,12 @@ export async function fetchHazardReports(options?: {
 export async function castVote(
   reportId: string,
   vote: 1 | -1
-): Promise<{ success: boolean; newStatus?: string; upCount?: number; downCount?: number }> {
+): Promise<{ success: boolean; newStatus?: string; upCount?: number; downCount?: number; isOfflineQueued?: boolean }> {
+  if (typeof navigator !== 'undefined' && !navigator.onLine) {
+    await enqueueAction('vote', { reportId, vote });
+    return { success: true, isOfflineQueued: true };
+  }
+
   const { data, error } = await supabase.rpc('cast_vote', {
     p_report_id: reportId,
     p_vote: vote,

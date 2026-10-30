@@ -132,3 +132,4 @@ describe('Safety Chat Feature - Intent Matching & Offline Guide', () => {
     expect(jsonStr).not.toContain('31.1048123');
   });
 });
+
