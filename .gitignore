@@ -16,6 +16,9 @@ dist-ssr/
 # Map tiles
 public/maps/
 
+# Supabase CLI temp
+supabase/.temp/
+
 # Editor / OS
 .DS_Store
 Thumbs.db

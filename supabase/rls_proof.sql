@@ -30,3 +30,4 @@ select count(*) as user_b_visible_contacts from public.emergency_contacts;
 -- 4. User B attempts to read User A's profile
 select * from public.profiles where id = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
 -- Returns 0 rows (Profiles RLS blocks reading other users' private profiles)
+

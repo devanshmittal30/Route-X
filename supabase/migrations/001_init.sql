@@ -605,3 +605,4 @@ begin
   return v_expired_count;
 end;
 $$;
+
