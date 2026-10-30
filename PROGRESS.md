@@ -25,22 +25,32 @@
 - **P2 Design System & Layout Shell**:
   - Installed `@fontsource/inter` (400, 500, 600) and `@fontsource/jetbrains-mono` (400, 600).
   - Configured typography scale (`h1`, `h2`, `h3`, `body`, `small`) and border radius tokens (`rounded-card`, `rounded-btn`, `rounded-chip`).
-  - Implemented core UI components in `src/components/ui/`: `Button` (primary/secondary/danger/ghost with loading), `Card`, `Badge`, `RiskBadge` (level -> color, icon, label, score), `RiskMeter` (horizontal 0-100 bar with level bands), `TestBadge`, `DemoBadge`, `SponsoredBadge`, `VerifiedBadge`, `Banner` (offline/info/disclaimer), `Modal`, `Drawer`, `Tabs`, `Toast`, `Skeleton`, `EmptyState`, `Input`, `Select`, `Switch`.
-  - Implemented layout components in `src/components/layout/`:
-    - `Header`: RouteX text logo with mountain-route SVG glyph in brand color, navigation links, Demo mode toggle, live online/offline indicator dot, persistent red SOS button, profile/login link, and mobile drawer.
-    - `Footer`: Verbatim disclaimer ("RouteX gives risk estimates from public data and user reports. It is not an official warning. Follow IMD, NDMA and local administration advisories.") and Doc 03 Section 14 attributions.
-    - `MobileTabBar`: Fixed bottom navigation for mobile viewports.
-    - `AppShell`: Persistent wrapper with Header, Footer, MobileTabBar, Chat Assistant FAB, and SOS FAB.
-  - Implemented 14 page routes with title and "Coming soon" EmptyState: Home (`/`), Route (`/route`), Map (`/map`), Report (`/report`), Reports (`/reports`), Trek (`/trek`), Offline (`/offline`), SOS (`/sos`), Stays (`/stays`), Rewards (`/rewards`), Alerts (`/alerts`), Profile (`/profile`), Login (`/login`), About (`/about`).
-  - Built interactive dev-only `/design-system` page showcasing all tokens, risk meters, badges, and components.
-  - Verified P2 acceptance: All routes render, WCAG AA contrast on soft backgrounds, keyboard focus visible, zero raw hex values in application styles, and `typecheck`, `lint`, and `test` pass.
+  - Implemented core UI components in `src/components/ui/`: `Button` (primary/secondary/danger/ghost with loading), `Card`, `Badge`, `RiskBadge`, `RiskMeter`, `TestBadge`, `DemoBadge`, `SponsoredBadge`, `VerifiedBadge`, `Banner`, `Modal`, `Drawer`, `Tabs`, `Toast`, `Skeleton`, `EmptyState`, `Input`, `Select`, `Switch`.
+  - Implemented layout components in `src/components/layout/`: `Header`, `Footer`, `MobileTabBar`, `AppShell`.
+  - Configured all 14 routes in `src/app/App.tsx` and interactive `/design-system` page.
+
+- **P3 Supabase Schema, RLS, Functions & Auth**:
+  - Created `supabase/migrations/001_init.sql` containing:
+    - PostGIS extension, custom types (`report_type`, `report_status`), and 11 core tables (`profiles`, `emergency_contacts`, `hazard_reports`, `report_votes`, `points_ledger`, `historical_landslides`, `partners`, `offers`, `redemptions`, `sos_events`, `saved_routes`, `weather_cache`).
+    - Row Level Security (RLS) policies for all tables.
+    - Triggers: `handle_new_user()` on `auth.users` creating a profile, and `set_report_defaults()` setting expiry intervals by type.
+    - Security Definer functions: `reports_near()`, `reports_along_route()`, `cast_vote()`, `redeem_offer()`, and `expire_reports()`.
+  - Created `supabase/seed.sql` with:
+    - 8 realistic hill/Northeast test hazard reports (`is_test = true`, descriptions starting with `[TEST]`).
+    - 4 fictional demo partners with redeemable offers (`is_demo = true`, neutral invented names).
+    - Zero fake users, fake weather, or fake historic events.
+  - Created `supabase/rls_proof.sql` demonstrating that RLS blocks reading other users' emergency contacts and private profiles.
+  - Implemented `src/lib/supabase.ts` client.
+  - Implemented `src/features/auth/AuthContext.tsx` session provider (email + password, Google OAuth, sign out, profile fetching).
+  - Implemented `ProtectedRoute.tsx` route guard.
+  - Implemented full `LoginPage.tsx` (Sign in / Sign up / Google OAuth toggle) and `ProfilePage.tsx` (Display name & phone editor, emergency contacts CRUD).
 
 - **MCP & Repository Setup**:
   - Configured Supabase MCP server in `~/.gemini/antigravity/mcp_config.json` (`project_ref=uvtxpwnjvvxasjtopdby`).
   - Connected Git remote `origin` to `https://github.com/devanshmittal30/Route-X.git`.
 
 ## In progress
-- Ready for P3 (Base vector map and hazard layers).
+- Ready for P4 (Map foundation with PMTiles).
 
 ## Questions for the user
 - None. Ready for next prompt.

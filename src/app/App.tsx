@@ -1,5 +1,6 @@
-
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { AuthProvider } from '../features/auth/AuthContext';
+import { ProtectedRoute } from '../features/auth/ProtectedRoute';
 import { AppShell } from '../components/layout/AppShell';
 
 import { HomePage } from '../pages/HomePage';
@@ -20,27 +21,36 @@ import { DesignSystemPage } from '../pages/DesignSystemPage';
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <AppShell>
-        <Routes>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/route" element={<RoutePage />} />
-          <Route path="/map" element={<MapPage />} />
-          <Route path="/report" element={<ReportPage />} />
-          <Route path="/reports" element={<ReportsPage />} />
-          <Route path="/trek" element={<TrekPage />} />
-          <Route path="/offline" element={<OfflinePage />} />
-          <Route path="/sos" element={<SosPage />} />
-          <Route path="/stays" element={<StaysPage />} />
-          <Route path="/rewards" element={<RewardsPage />} />
-          <Route path="/alerts" element={<AlertsPage />} />
-          <Route path="/profile" element={<ProfilePage />} />
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/about" element={<AboutPage />} />
-          <Route path="/design-system" element={<DesignSystemPage />} />
-          <Route path="*" element={<HomePage />} />
-        </Routes>
-      </AppShell>
-    </BrowserRouter>
+    <AuthProvider>
+      <BrowserRouter>
+        <AppShell>
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/route" element={<RoutePage />} />
+            <Route path="/map" element={<MapPage />} />
+            <Route path="/report" element={<ReportPage />} />
+            <Route path="/reports" element={<ReportsPage />} />
+            <Route path="/trek" element={<TrekPage />} />
+            <Route path="/offline" element={<OfflinePage />} />
+            <Route path="/sos" element={<SosPage />} />
+            <Route path="/stays" element={<StaysPage />} />
+            <Route path="/rewards" element={<RewardsPage />} />
+            <Route path="/alerts" element={<AlertsPage />} />
+            <Route
+              path="/profile"
+              element={
+                <ProtectedRoute>
+                  <ProfilePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/about" element={<AboutPage />} />
+            <Route path="/design-system" element={<DesignSystemPage />} />
+            <Route path="*" element={<HomePage />} />
+          </Routes>
+        </AppShell>
+      </BrowserRouter>
+    </AuthProvider>
   );
 }
