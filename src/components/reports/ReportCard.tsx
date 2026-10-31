@@ -91,6 +91,7 @@ export const ReportCard: React.FC<ReportCardProps> = ({
   className = '',
 }) => {
   const [photoModalOpen, setPhotoModalOpen] = useState<boolean>(false);
+  const [photoError, setPhotoError] = useState<boolean>(false);
   const typeConfig = REPORT_TYPE_CONFIG[report.type] || REPORT_TYPE_CONFIG.landslide;
 
   return (
@@ -164,7 +165,7 @@ export const ReportCard: React.FC<ReportCardProps> = ({
       )}
 
       {/* Photo thumbnail if uploaded */}
-      {report.photo_url && (
+      {report.photo_url && !photoError && (
         <div className="pl-10 mb-3">
           <div
             onClick={(e) => {
@@ -176,6 +177,7 @@ export const ReportCard: React.FC<ReportCardProps> = ({
             <img
               src={report.photo_url}
               alt="Hazard report evidence"
+              onError={() => setPhotoError(true)}
               className="w-full h-full object-cover transition-transform group-hover:scale-105"
             />
             <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">

@@ -74,6 +74,9 @@ export const ReportDetailDrawer: React.FC<ReportDetailDrawerProps> = ({
               <img
                 src={report.photo_url}
                 alt="Hazard report evidence"
+                onError={(e) => {
+                  (e.target as HTMLElement).parentElement?.classList.add('hidden');
+                }}
                 className="max-h-56 w-auto object-contain"
               />
             </div>

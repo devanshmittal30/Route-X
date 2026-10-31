@@ -28,6 +28,7 @@ import {
   type SavedRoute,
 } from '../features/routing/savedRoutesService';
 import { levelFor } from '../features/risk';
+import { ReportModal } from '../components/reports/ReportModal';
 
 interface EmergencyContact {
   id: string;
@@ -73,6 +74,7 @@ export const ProfilePage: React.FC = () => {
   }
   const [myReports, setMyReports] = useState<MyReportItem[]>([]);
   const [loadingReports, setLoadingReports] = useState(false);
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
 
   interface MyCouponItem {
     id: string;
@@ -572,7 +574,7 @@ export const ProfilePage: React.FC = () => {
           </div>
           <Button
             variant="secondary"
-            onClick={() => navigate('/report')}
+            onClick={() => setIsReportModalOpen(true)}
             icon={<Plus className="w-4 h-4" />}
           >
             Report Hazard
@@ -748,6 +750,16 @@ export const ProfilePage: React.FC = () => {
           </div>
         </form>
       </Modal>
+
+      {/* Report Hazard Modal (FR-A2) */}
+      <ReportModal
+        isOpen={isReportModalOpen}
+        onClose={() => setIsReportModalOpen(false)}
+        onReportCreated={() => {
+          setIsReportModalOpen(false);
+          fetchMyReports();
+        }}
+      />
 
       {/* Privacy Notice */}
       <div className="p-4 rounded-card bg-surface border border-border text-xs text-text-3 leading-relaxed">

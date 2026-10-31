@@ -9,16 +9,25 @@ export const ReportPage: React.FC = () => {
   const navigate = useNavigate();
   const [modalOpen, setModalOpen] = useState<boolean>(true);
 
+  const handleBack = () => {
+    setModalOpen(false);
+    if (window.history.length > 2) {
+      navigate(-1);
+    } else {
+      navigate('/reports');
+    }
+  };
+
   return (
     <div className="max-w-[800px] w-full mx-auto px-4 py-8 space-y-6">
       <div className="flex items-center gap-3">
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => navigate('/reports')}
+          onClick={handleBack}
           icon={<ArrowLeft size={16} />}
         >
-          Back to Reports
+          Back
         </Button>
       </div>
 
@@ -47,10 +56,7 @@ export const ReportPage: React.FC = () => {
 
       <ReportModal
         isOpen={modalOpen}
-        onClose={() => {
-          setModalOpen(false);
-          navigate('/reports');
-        }}
+        onClose={handleBack}
         onReportCreated={() => {
           navigate('/reports');
         }}

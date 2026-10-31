@@ -32,8 +32,62 @@ export function calculateReportExpiresAt(
 }
 
 /**
+ * Compresses an image client-side to a max dimension and quality, returning a data URL.
+ */
+async function compressImageToDataUrl(
+  file: File,
+  maxDimension = 960,
+  quality = 0.75
+): Promise<string> {
+  return new Promise((resolve) => {
+    if (typeof window === 'undefined' || typeof document === 'undefined') {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve((reader.result as string) || '');
+      reader.readAsDataURL(file);
+      return;
+    }
+
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let { width, height } = img;
+      if (width > maxDimension || height > maxDimension) {
+        if (width > height) {
+          height = Math.round((height * maxDimension) / width);
+          width = maxDimension;
+        } else {
+          width = Math.round((width * maxDimension) / height);
+          height = maxDimension;
+        }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      } else {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve((reader.result as string) || '');
+        reader.readAsDataURL(file);
+      }
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      const reader = new FileReader();
+      reader.onloadend = () => resolve((reader.result as string) || '');
+      reader.readAsDataURL(file);
+    };
+    img.src = url;
+  });
+}
+
+/**
  * Uploads an optional hazard report photo to the Supabase Storage bucket 'report-photos'.
  * Strict limits: <= 3 MB, jpeg/png/webp only.
+ * Resilient fallback: compresses to base64 Data URL so photo is never lost even if bucket is unconfigured.
  */
 export async function uploadReportPhoto(
   file: File,
@@ -42,6 +96,13 @@ export async function uploadReportPhoto(
   const validation = validatePhotoFile(file);
   if (!validation.valid) {
     throw new Error(validation.error || 'Invalid photo file');
+  }
+
+  let compressedDataUrl = '';
+  try {
+    compressedDataUrl = await compressImageToDataUrl(file, 960, 0.75);
+  } catch {
+    // fallback
   }
 
   const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
@@ -62,29 +123,29 @@ export async function uploadReportPhoto(
         .getPublicUrl(filePath);
 
       return {
-        path: filePath,
+        path: urlData.publicUrl || filePath,
         url: urlData.publicUrl,
       };
     }
-    console.warn('Supabase storage upload returned error, using local fallback:', error.message);
+    console.warn('Supabase storage upload error, falling back to embedded photo data:', error.message);
   } catch (err) {
-    console.warn('Supabase storage exception, using local fallback:', err);
+    console.warn('Supabase storage exception, falling back to embedded photo data:', err);
   }
 
-  // Graceful fallback: convert to base64 Data URL so report submission succeeds without errors
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      resolve({
-        path: filePath,
-        url: (reader.result as string) || '',
-      });
-    };
-    reader.onerror = () => {
-      resolve({ path: filePath, url: '' });
-    };
-    reader.readAsDataURL(file);
-  });
+  // Graceful fallback: return compressed base64 Data URL so photo is permanently visible
+  const finalUrl =
+    compressedDataUrl ||
+    (await new Promise<string>((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve((reader.result as string) || '');
+      reader.onerror = () => resolve('');
+      reader.readAsDataURL(file);
+    }));
+
+  return {
+    path: finalUrl,
+    url: finalUrl,
+  };
 }
 
 /**
@@ -267,8 +328,9 @@ export async function createHazardReport(
 
   if (input.photoFile) {
     const uploadRes = await uploadReportPhoto(input.photoFile, userId);
-    photoPath = uploadRes.path;
-    photoUrl = uploadRes.url;
+    // Use the direct public URL or data URL for photo_path so images never break or 404
+    photoPath = uploadRes.url || uploadRes.path;
+    photoUrl = uploadRes.url || uploadRes.path;
   }
 
   // 5. Expiry calculation per Doc 03 section 8
@@ -383,10 +445,18 @@ export async function fetchHazardReports(options?: {
 
     let photoUrl: string | null = null;
     if (row.photo_path) {
-      const { data: urlData } = supabase.storage
-        .from('report-photos')
-        .getPublicUrl(row.photo_path);
-      photoUrl = urlData.publicUrl;
+      if (
+        row.photo_path.startsWith('http://') ||
+        row.photo_path.startsWith('https://') ||
+        row.photo_path.startsWith('data:')
+      ) {
+        photoUrl = row.photo_path;
+      } else {
+        const { data: urlData } = supabase.storage
+          .from('report-photos')
+          .getPublicUrl(row.photo_path);
+        photoUrl = urlData.publicUrl;
+      }
     }
 
     return {
@@ -462,6 +532,23 @@ export function subscribeToHazardReports(
         if (payload.new && typeof payload.new === 'object') {
           const row = payload.new as Record<string, unknown>;
           const coords = parseCoordinates(row.geom) || [0, 0];
+          let photoUrl: string | null = null;
+          const photoPathVal = row.photo_path ? String(row.photo_path) : null;
+          if (photoPathVal) {
+            if (
+              photoPathVal.startsWith('http://') ||
+              photoPathVal.startsWith('https://') ||
+              photoPathVal.startsWith('data:')
+            ) {
+              photoUrl = photoPathVal;
+            } else {
+              const { data: urlData } = supabase.storage
+                .from('report-photos')
+                .getPublicUrl(photoPathVal);
+              photoUrl = urlData.publicUrl;
+            }
+          }
+
           newReport = {
             id: String(row.id),
             user_id: row.user_id ? String(row.user_id) : null,
@@ -469,7 +556,8 @@ export function subscribeToHazardReports(
             severity: Number(row.severity) as 1 | 2 | 3,
             description: row.description ? String(row.description) : null,
             coordinates: coords,
-            photo_path: row.photo_path ? String(row.photo_path) : null,
+            photo_path: photoPathVal,
+            photo_url: photoUrl,
             status: row.status as HazardReport['status'],
             is_test: Boolean(row.is_test),
             up_count: Number(row.up_count) || 0,
