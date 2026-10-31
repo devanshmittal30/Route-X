@@ -17,6 +17,7 @@ import {
   Loader2,
   Clock,
   WifiOff,
+  Play,
 } from 'lucide-react';
 
 import type { RouteMode, RouteOption, GeocodedPlace, RouteStep } from '../features/routing/types';
@@ -53,6 +54,7 @@ import {
   type SavedRoute,
 } from '../features/routing/savedRoutesService';
 import { SavedRoutesModal } from '../components/routing/SavedRoutesModal';
+import { RouteSimulator } from '../components/routing/RouteSimulator';
 
 // Default starting demo route: Shimla to Manali
 const DEFAULT_FROM_PLACE: GeocodedPlace = {
@@ -120,6 +122,7 @@ export const RoutePage: React.FC = () => {
   const [reRouteComparison, setReRouteComparison] = useState<ReRouteComparison | null>(null);
   const [isReRouting, setIsReRouting] = useState<boolean>(false);
   const [reRouteProgress, setReRouteProgress] = useState<string | null>(null);
+  const [simulatorOpen, setSimulatorOpen] = useState<boolean>(false);
 
   // GPS & Destination Input Ref
   const destinationInputRef = useRef<HTMLInputElement>(null);
@@ -1198,6 +1201,18 @@ export const RoutePage: React.FC = () => {
             </Button>
           )}
 
+          {/* Interactive Live Re-Route Simulator Trigger Button */}
+          {selectedRoute && selectedRisk && (
+            <Button
+              variant="secondary"
+              className="w-full justify-center bg-accent/10 hover:bg-accent/20 text-accent font-bold border border-accent/30 shadow-2xs py-2"
+              onClick={() => setSimulatorOpen(true)}
+              icon={<Play size={14} fill="currentColor" className="text-accent" />}
+            >
+              Simulate Landslide & Live Re-Route
+            </Button>
+          )}
+
           <div className="grid grid-cols-2 gap-2">
             <Button
               variant="ghost"
@@ -1272,7 +1287,48 @@ export const RoutePage: React.FC = () => {
               {formatDuration(selectedRoute.durationSeconds)}
             </span>
           )}
+          {selectedRoute && selectedRisk && !simulatorOpen && (
+            <button
+              type="button"
+              onClick={() => setSimulatorOpen(true)}
+              className="bg-accent hover:bg-accent-hover text-white text-xs font-bold px-2.5 py-1 rounded-chip shadow-sm flex items-center gap-1.5 transition-all active:scale-95 animate-pulse"
+            >
+              <Play size={11} fill="currentColor" />
+              <span>Simulate Landslide & Detour</span>
+            </button>
+          )}
         </div>
+
+        {/* Live Re-Route Simulator Overlay */}
+        {selectedRoute && selectedRisk && (
+          <RouteSimulator
+            route={selectedRoute}
+            risk={selectedRisk}
+            mode={mode}
+            demoMode={demoMode}
+            mapApi={mapApi}
+            isOpen={simulatorOpen}
+            onClose={() => setSimulatorOpen(false)}
+            onApplyDetour={(detourRoute, detourRisk) => {
+              setRoutes((prev) => [detourRoute, ...prev.filter((r) => r.id !== detourRoute.id)]);
+              setSelectedRouteId(detourRoute.id);
+              setRouteRisks((prev) => ({
+                ...prev,
+                [detourRoute.id]: detourRisk,
+              }));
+              window.dispatchEvent(
+                new CustomEvent('routex:toast', {
+                  detail: {
+                    id: `detour-applied-${Date.now()}`,
+                    type: 'info',
+                    title: 'Safe Detour Applied',
+                    message: 'Active navigation updated to the safest detour avoiding the landslide.',
+                  },
+                })
+              );
+            }}
+          />
+        )}
       </div>
 
       {/* Saved Routes Modal */}

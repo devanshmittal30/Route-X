@@ -199,3 +199,4 @@ npm run build
 
 * **License:** MIT License. Built for hackathons, disaster response, and mountain safety.
 * **Disclaimer:** RouteX provides disaster risk estimates based on publicly available meteorological models, geological inventories, and crowdsourced hazard reports. In extreme weather events, always adhere to local authorities, NDRF, and SDRF advisories.
+
