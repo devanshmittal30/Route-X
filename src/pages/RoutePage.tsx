@@ -983,6 +983,35 @@ export const RoutePage: React.FC = () => {
             />
           </div>
 
+          {/* Judges Demo Quick Trigger Card - Prominently at Top */}
+          <div className="p-3 bg-gradient-to-r from-accent/15 via-brand/10 to-accent/15 border-2 border-accent/40 rounded-card shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 animate-fadeIn">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-full bg-accent flex items-center justify-center text-white shadow-xs shrink-0 animate-pulse">
+                <Play size={15} fill="currentColor" />
+              </div>
+              <div>
+                <div className="text-xs font-bold text-brand uppercase tracking-wider flex items-center gap-1.5">
+                  <span>Judges Demo: Live Re-Route</span>
+                  <span className="bg-accent text-white px-1.5 py-0.2 rounded-chip text-[9px] font-mono font-bold">DEMO</span>
+                </div>
+                <p className="text-[11px] text-text-2 mt-0.5">
+                  Simulate a sudden landslide on NH-5 & watch RouteX auto-recalculate mid-journey!
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                if (!selectedRoute) calculateRoute();
+                setSimulatorOpen(true);
+              }}
+              className="w-full sm:w-auto px-3.5 py-2 bg-accent hover:bg-accent-hover text-white text-xs font-bold rounded-btn shadow-md transition-all active:scale-95 shrink-0 flex items-center justify-center gap-1.5"
+            >
+              <Play size={13} fill="currentColor" />
+              <span>Launch Simulator ▶</span>
+            </button>
+          </div>
+
           {/* Mountain Offline Resilience Banner */}
           {isOfflineSnapshotActive && (
             <div className="p-3 bg-brand/5 border border-brand/20 rounded-btn flex items-start gap-2.5 text-xs animate-fadeIn">
@@ -1276,59 +1305,96 @@ export const RoutePage: React.FC = () => {
           className="w-full h-full rounded-none border-none"
         />
 
-        {/* Map Header Status Overlay */}
-        <div className="absolute top-3 left-3 z-10 hidden sm:flex items-center gap-2">
-          <Badge variant="brand">
+        {/* Map Header Status Overlay - Always visible on all screens */}
+        <div className="absolute top-3 left-3 right-3 sm:right-auto z-10 flex flex-wrap items-center gap-2 pointer-events-none">
+          <Badge variant="brand" className="pointer-events-auto">
             {mode === 'drive' ? 'Driving Route' : 'Walking Trail'}
           </Badge>
           {selectedRoute && (
-            <span className="bg-white/90 backdrop-blur-sm border border-border px-2 py-0.5 rounded-chip text-xs font-mono font-bold text-text shadow-xs">
+            <span className="bg-white/90 backdrop-blur-sm border border-border px-2 py-0.5 rounded-chip text-xs font-mono font-bold text-text shadow-xs pointer-events-auto">
               {formatDistance(selectedRoute.distanceMeters)} ·{' '}
               {formatDuration(selectedRoute.durationSeconds)}
             </span>
           )}
-          {selectedRoute && selectedRisk && !simulatorOpen && (
+          {!simulatorOpen && (
             <button
               type="button"
-              onClick={() => setSimulatorOpen(true)}
-              className="bg-accent hover:bg-accent-hover text-white text-xs font-bold px-2.5 py-1 rounded-chip shadow-sm flex items-center gap-1.5 transition-all active:scale-95 animate-pulse"
+              onClick={() => {
+                if (!selectedRoute) calculateRoute();
+                setSimulatorOpen(true);
+              }}
+              className="pointer-events-auto bg-accent hover:bg-accent-hover text-white text-xs font-bold px-3 py-1.5 rounded-chip shadow-md flex items-center gap-1.5 transition-all active:scale-95 animate-pulse border border-white/30"
             >
-              <Play size={11} fill="currentColor" />
+              <Play size={12} fill="currentColor" />
               <span>Simulate Landslide & Detour</span>
             </button>
           )}
         </div>
 
         {/* Live Re-Route Simulator Overlay */}
-        {selectedRoute && selectedRisk && (
-          <RouteSimulator
-            route={selectedRoute}
-            risk={selectedRisk}
-            mode={mode}
-            demoMode={demoMode}
-            mapApi={mapApi}
-            isOpen={simulatorOpen}
-            onClose={() => setSimulatorOpen(false)}
-            onApplyDetour={(detourRoute, detourRisk) => {
-              setRoutes((prev) => [detourRoute, ...prev.filter((r) => r.id !== detourRoute.id)]);
-              setSelectedRouteId(detourRoute.id);
-              setRouteRisks((prev) => ({
-                ...prev,
-                [detourRoute.id]: detourRisk,
-              }));
-              window.dispatchEvent(
-                new CustomEvent('routex:toast', {
-                  detail: {
-                    id: `detour-applied-${Date.now()}`,
-                    type: 'info',
-                    title: 'Safe Detour Applied',
-                    message: 'Active navigation updated to the safest detour avoiding the landslide.',
-                  },
-                })
-              );
-            }}
-          />
-        )}
+        <RouteSimulator
+          route={
+            selectedRoute || {
+              id: 'demo-sim-route',
+              name: 'Shimla to Manali Highway',
+              distanceMeters: 244000,
+              durationSeconds: 19800,
+              geometry: {
+                type: 'LineString',
+                coordinates: [
+                  [77.1734, 31.1048],
+                  [77.185, 31.15],
+                  [77.21, 31.22],
+                  [77.24, 31.35],
+                  [77.215, 31.5],
+                  [77.2, 31.65],
+                  [77.195, 31.8],
+                  [77.19, 32.0],
+                  [77.1892, 32.2432],
+                ],
+              },
+              legs: [],
+            }
+          }
+          risk={
+            selectedRisk || {
+              score: 74,
+              level: 'High',
+              isBlocked: false,
+              maxSegmentScore: 78,
+              meanSegmentScore: 56,
+              segments: [],
+              factorBars: [],
+              hazardsOnRoute: [],
+              summary: 'Monsoon saturated slope along NH-5 corridor.',
+              timestamp: 'Just now',
+              disclaimer: 'RouteX estimates.',
+            }
+          }
+          mode={mode}
+          demoMode={demoMode}
+          mapApi={mapApi}
+          isOpen={simulatorOpen}
+          onClose={() => setSimulatorOpen(false)}
+          onApplyDetour={(detourRoute, detourRisk) => {
+            setRoutes((prev) => [detourRoute, ...prev.filter((r) => r.id !== detourRoute.id)]);
+            setSelectedRouteId(detourRoute.id);
+            setRouteRisks((prev) => ({
+              ...prev,
+              [detourRoute.id]: detourRisk,
+            }));
+            window.dispatchEvent(
+              new CustomEvent('routex:toast', {
+                detail: {
+                  id: `detour-applied-${Date.now()}`,
+                  type: 'info',
+                  title: 'Safe Detour Applied',
+                  message: 'Active navigation updated to the safest detour avoiding the landslide.',
+                },
+              })
+            );
+          }}
+        />
       </div>
 
       {/* Saved Routes Modal */}

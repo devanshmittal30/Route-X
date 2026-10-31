@@ -44,6 +44,7 @@ export const Header: React.FC<HeaderProps> = ({
     { to: '/stays', label: 'Stays' },
     { to: '/rewards', label: 'Rewards' },
     { to: '/offline', label: 'Offline' },
+    { to: '/reports', label: 'Community' },
     { to: '/about', label: 'About' },
   ];
 
