@@ -1376,7 +1376,7 @@ export const RoutePage: React.FC = () => {
           mapApi={mapApi}
           isOpen={simulatorOpen}
           onClose={() => setSimulatorOpen(false)}
-          onApplyDetour={(detourRoute, detourRisk) => {
+          onApplyDetour={(detourRoute: RouteOption, detourRisk: RouteRiskScore) => {
             setRoutes((prev) => [detourRoute, ...prev.filter((r) => r.id !== detourRoute.id)]);
             setSelectedRouteId(detourRoute.id);
             setRouteRisks((prev) => ({
