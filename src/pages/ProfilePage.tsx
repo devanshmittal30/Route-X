@@ -28,7 +28,6 @@ import {
   type SavedRoute,
 } from '../features/routing/savedRoutesService';
 import { levelFor } from '../features/risk';
-import { ReportModal } from '../components/reports/ReportModal';
 
 interface EmergencyContact {
   id: string;
@@ -74,7 +73,6 @@ export const ProfilePage: React.FC = () => {
   }
   const [myReports, setMyReports] = useState<MyReportItem[]>([]);
   const [loadingReports, setLoadingReports] = useState(false);
-  const [isReportModalOpen, setIsReportModalOpen] = useState(false);
 
   interface MyCouponItem {
     id: string;
@@ -565,20 +563,11 @@ export const ProfilePage: React.FC = () => {
 
       {/* My Submitted Hazard Reports (FR-A2) */}
       <Card className="space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <h2 className="text-h2 font-semibold text-text">My Hazard Reports</h2>
-            <p className="text-small text-text-2">
-              Mountain hazard obstacles submitted to the RouteX community with live verification counts.
-            </p>
-          </div>
-          <Button
-            variant="secondary"
-            onClick={() => setIsReportModalOpen(true)}
-            icon={<Plus className="w-4 h-4" />}
-          >
-            Report Hazard
-          </Button>
+        <div>
+          <h2 className="text-h2 font-semibold text-text">My Hazard Reports</h2>
+          <p className="text-small text-text-2">
+            Mountain hazard obstacles submitted to the RouteX community with live verification counts.
+          </p>
         </div>
 
         {loadingReports ? (
@@ -750,16 +739,6 @@ export const ProfilePage: React.FC = () => {
           </div>
         </form>
       </Modal>
-
-      {/* Report Hazard Modal (FR-A2) */}
-      <ReportModal
-        isOpen={isReportModalOpen}
-        onClose={() => setIsReportModalOpen(false)}
-        onReportCreated={() => {
-          setIsReportModalOpen(false);
-          fetchMyReports();
-        }}
-      />
 
       {/* Privacy Notice */}
       <div className="p-4 rounded-card bg-surface border border-border text-xs text-text-3 leading-relaxed">
